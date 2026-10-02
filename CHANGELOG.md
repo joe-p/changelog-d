@@ -1,3 +1,9 @@
+# 0.4.0
+
+## Breaking Changes
+
+- Rename the package and CLI from `changelog-d` to `semfrag`. The default config file is now `semfrag.json` and the `changelog-d` binary is now `semfrag`.
+
 # 0.3.0
 
 ## Features
