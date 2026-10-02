@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { readFileSync } from "node:fs";
-import { DEFAULT_INITIAL_VERSION, generate, init, latest, release } from "./changelog.ts";
+import { DEFAULT_INITIAL_VERSION, generate, init, latest, notes, release } from "./changelog.ts";
 import {
   DEFAULT_CONFIG_FILE,
   loadConfig,
@@ -25,6 +25,7 @@ Usage:
   changelog-d [generate] [options]
   changelog-d release [options]
   changelog-d latest [options]
+  changelog-d notes [options]
   changelog-d init [options]
 
 Commands:
@@ -35,6 +36,8 @@ Commands:
                         release. With --alpha/--beta/--rc/--pre, tags the section
                         as a prerelease instead. Fails if fragments are pending.
   latest                Print the latest released version from the changelog.
+  notes                 Print the changelog body of the latest release, without
+                        the version heading. Useful for release notes.
   init                  Create an empty changelog with an unreleased heading, the
                         fragments directory and a config file. Fails if the
                         changelog exists. A 0.y.z start makes "Breaking Changes"
@@ -135,6 +138,7 @@ async function main(): Promise<void> {
     command !== "generate" &&
     command !== "release" &&
     command !== "latest" &&
+    command !== "notes" &&
     command !== "init"
   ) {
     fail(`unknown command: ${command}`);
@@ -195,6 +199,12 @@ async function main(): Promise<void> {
   if (command === "latest") {
     const result = await latest({ output });
     process.stdout.write(`${result.version}\n`);
+    return;
+  }
+
+  if (command === "notes") {
+    const result = await notes({ output });
+    process.stdout.write(`${result.notes}\n`);
     return;
   }
 

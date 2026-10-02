@@ -72,6 +72,15 @@ export interface LatestResult {
   version: string;
 }
 
+export interface NotesOptions {
+  output: string;
+}
+
+export interface NotesResult {
+  version: string;
+  notes: string;
+}
+
 export interface InitOptions {
   output: string;
   dir: string;
@@ -290,14 +299,32 @@ export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
     : releaseFinal(options, blocks, preamble);
 }
 
+function latestReleased(blocks: VersionBlock[], output: string): VersionBlock {
+  const released = blocks.find((block) => !block.unreleased);
+  if (!released) {
+    throw new Error(`No released version found in ${output}.`);
+  }
+  return released;
+}
+
 export async function latest(options: LatestOptions): Promise<LatestResult> {
   const existing = await readFile(options.output, "utf8");
   const { blocks } = parseChangelogDocument(existing);
-  const released = blocks.find((block) => !block.unreleased);
-  if (!released) {
-    throw new Error(`No released version found in ${options.output}.`);
-  }
-  return { version: released.version };
+  return { version: latestReleased(blocks, options.output).version };
+}
+
+export async function notes(options: NotesOptions): Promise<NotesResult> {
+  const existing = await readFile(options.output, "utf8");
+  const { blocks } = parseChangelogDocument(existing);
+  const released = latestReleased(blocks, options.output);
+  // Drop the "# <version>" heading; the body is the release notes.
+  const notes = released.raw
+    .split("\n")
+    .slice(1)
+    .join("\n")
+    .replace(/^\n+/, "")
+    .replace(/\s+$/, "");
+  return { version: released.version, notes };
 }
 
 async function releasePrerelease(

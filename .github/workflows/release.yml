@@ -78,3 +78,17 @@ jobs:
             git tag "v${VERSION}"
             git push origin "v${VERSION}"
           fi
+
+      - name: Create GitHub release
+        if: steps.release.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists."
+          else
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --notes "$(node dist/cli.js notes)"
+          fi

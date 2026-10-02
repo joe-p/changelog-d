@@ -20,6 +20,7 @@ export {
   generate,
   init,
   latest,
+  notes,
   release,
   readFragments,
   selectBump,
@@ -29,6 +30,8 @@ export {
   type InitResult,
   type LatestOptions,
   type LatestResult,
+  type NotesOptions,
+  type NotesResult,
   type ReleaseOptions,
   type ReleaseResult,
 } from "./changelog.ts";

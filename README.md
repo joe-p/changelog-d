@@ -40,6 +40,7 @@ changelog-d init [options]
 changelog-d generate [options]
 changelog-d release [options]
 changelog-d latest [options]
+changelog-d notes [options]
 ```
 
 `generate` is the default command, so `changelog-d` on its own is equivalent to
@@ -198,6 +199,22 @@ $ changelog-d latest
 This is useful in scripts that need the released version, for example to tag a
 release. Prereleases count as released, so a top `1.0.1-alpha.1` prints
 `1.0.1-alpha.1`. The command fails if the changelog has no released version yet.
+
+### Release notes
+
+```sh
+changelog-d notes
+```
+
+prints the changelog body of the most recent released version, without the
+`# X.Y.Z` heading, so it can be piped straight into a release:
+
+```sh
+gh release create "v$(changelog-d latest)" --notes "$(changelog-d notes)"
+```
+
+Like `latest`, it skips a top ` - UNRELEASED` section, counts prereleases as
+released, and fails if the changelog has no released version yet.
 
 ### Pre-releases
 
@@ -367,7 +384,7 @@ Replace `oldThing()` with `newThing()`.
 ## Programmatic API
 
 ```ts
-import { generate, init, latest, release, parseChangelog } from "changelog-d";
+import { generate, init, latest, notes, release, parseChangelog } from "changelog-d";
 
 await init({
   output: "CHANGELOG.md",
@@ -391,6 +408,7 @@ await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false });
 await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false, prerelease: "alpha" });
 
 const { version } = await latest({ output: "CHANGELOG.md" });
+const { notes } = await notes({ output: "CHANGELOG.md" });
 
 const blocks = parseChangelog("# 1.0.0\n\n## Features\n\n- hello\n", { Features: "list" });
 ```

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { generate, init, latest, release } from "../src/changelog.ts";
+import { generate, init, latest, notes, release } from "../src/changelog.ts";
 import { readConfig, sectionBumps, sectionOrder } from "../src/config.ts";
 
 const ORDER = ["Breaking Changes", "Fixes", "Features"];
@@ -264,6 +264,39 @@ test("latest fails without a released version", async () => {
   await assert.rejects(latest({ output }), /No released version/);
 });
 
+test("notes returns the body of the latest release without the version heading", async () => {
+  const { output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.2.0 - UNRELEASED\n\n## Features\n\n- Pending\n\n# 1.1.0\n\n## Fixes\n\n- Fixed\n\n## Features\n\n- Added\n\n# 1.0.0\n\n## Features\n\n- Old\n",
+  );
+
+  assert.deepEqual(await notes({ output }), {
+    version: "1.1.0",
+    notes: "## Fixes\n\n- Fixed\n\n## Features\n\n- Added",
+  });
+});
+
+test("notes treats a prerelease as the latest release", async () => {
+  const { output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.1.0 - UNRELEASED\n\n## Fixes\n\n- Pending\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- Preview\n\n# 1.0.0\n\n## Features\n\n- Old\n",
+  );
+
+  assert.deepEqual(await notes({ output }), {
+    version: "1.0.1-alpha.1",
+    notes: "## Fixes\n\n- Preview",
+  });
+});
+
+test("notes fails without a released version", async () => {
+  const { output } = await makeRoot();
+  await writeFile(output, "# 1.0.0 - UNRELEASED\n\n## Features\n\n- Pending\n");
+
+  await assert.rejects(notes({ output }), /No released version/);
+});
+
 test("CLI latest prints the released version", async () => {
   const { root, output } = await makeRoot();
   await writeFile(output, "# 1.0.0\n\n## Features\n\n- Released\n");
@@ -273,6 +306,17 @@ test("CLI latest prints the released version", async () => {
   const result = await run(process.execPath, [cli, "latest"], { cwd: root });
 
   assert.equal(result.stdout, "1.0.0\n");
+});
+
+test("CLI notes prints the latest release body", async () => {
+  const { root, output } = await makeRoot();
+  await writeFile(output, "# 1.0.0\n\n## Features\n\n- Released\n");
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+  const run = promisify(execFile);
+
+  const result = await run(process.execPath, [cli, "notes"], { cwd: root });
+
+  assert.equal(result.stdout, "## Features\n\n- Released\n");
 });
 
 test("release fails without an unreleased section", async () => {
