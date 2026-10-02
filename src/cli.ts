@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { readFileSync } from "node:fs";
-import { DEFAULT_INITIAL_VERSION, generate, init, release } from "./changelog.ts";
+import { DEFAULT_INITIAL_VERSION, generate, init, latest, release } from "./changelog.ts";
 import {
   DEFAULT_CONFIG_FILE,
   loadConfig,
@@ -24,6 +24,7 @@ const HELP = `changelog-d - merge changelog.d fragments into a changelog
 Usage:
   changelog-d [generate] [options]
   changelog-d release [options]
+  changelog-d latest [options]
   changelog-d init [options]
 
 Commands:
@@ -33,6 +34,7 @@ Commands:
                         prerelease flag, merges same-version prereleases into a
                         release. With --alpha/--beta/--rc/--pre, tags the section
                         as a prerelease instead. Fails if fragments are pending.
+  latest                Print the latest released version from the changelog.
   init                  Create an empty changelog with an unreleased heading, the
                         fragments directory and a config file. Fails if the
                         changelog exists. A 0.y.z start makes "Breaking Changes"
@@ -129,7 +131,12 @@ async function main(): Promise<void> {
   }
 
   const command = positionals[0] ?? "generate";
-  if (command !== "generate" && command !== "release" && command !== "init") {
+  if (
+    command !== "generate" &&
+    command !== "release" &&
+    command !== "latest" &&
+    command !== "init"
+  ) {
     fail(`unknown command: ${command}`);
   }
   if (positionals.length > 1) {
@@ -154,14 +161,11 @@ async function main(): Promise<void> {
   if (command !== "release" && prerelease !== undefined) {
     fail("--alpha, --beta, --rc and --pre can only be used with release");
   }
-  if (command === "release" && values.input !== undefined) {
+  if (command !== "generate" && values.input !== undefined) {
     fail("--input can only be used with generate");
   }
   if (command !== "init" && values.initial !== undefined) {
     fail("--initial can only be used with init");
-  }
-  if (command === "init" && values.input !== undefined) {
-    fail("--input can only be used with generate");
   }
 
   if (command === "init") {
@@ -185,6 +189,12 @@ async function main(): Promise<void> {
       return;
     }
     process.stdout.write(`Initialized ${output} at ${result.title}${configNote}.\n`);
+    return;
+  }
+
+  if (command === "latest") {
+    const result = await latest({ output });
+    process.stdout.write(`${result.version}\n`);
     return;
   }
 

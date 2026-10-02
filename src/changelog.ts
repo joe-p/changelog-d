@@ -64,6 +64,14 @@ export interface ReleaseResult {
   written: boolean;
 }
 
+export interface LatestOptions {
+  output: string;
+}
+
+export interface LatestResult {
+  version: string;
+}
+
 export interface InitOptions {
   output: string;
   dir: string;
@@ -280,6 +288,16 @@ export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
   return options.prerelease !== undefined
     ? releasePrerelease(options, blocks, options.prerelease, preamble)
     : releaseFinal(options, blocks, preamble);
+}
+
+export async function latest(options: LatestOptions): Promise<LatestResult> {
+  const existing = await readFile(options.output, "utf8");
+  const { blocks } = parseChangelogDocument(existing);
+  const released = blocks.find((block) => !block.unreleased);
+  if (!released) {
+    throw new Error(`No released version found in ${options.output}.`);
+  }
+  return { version: released.version };
 }
 
 async function releasePrerelease(

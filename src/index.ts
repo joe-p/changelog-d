@@ -19,6 +19,7 @@ export {
   DEFAULT_INITIAL_VERSION,
   generate,
   init,
+  latest,
   release,
   readFragments,
   selectBump,
@@ -26,6 +27,8 @@ export {
   type GenerateResult,
   type InitOptions,
   type InitResult,
+  type LatestOptions,
+  type LatestResult,
   type ReleaseOptions,
   type ReleaseResult,
 } from "./changelog.ts";

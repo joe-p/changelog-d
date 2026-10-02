@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { generate, init, release } from "../src/changelog.ts";
+import { generate, init, latest, release } from "../src/changelog.ts";
 import { readConfig, sectionBumps, sectionOrder } from "../src/config.ts";
 
 const ORDER = ["Breaking Changes", "Fixes", "Features"];
@@ -235,6 +235,44 @@ test("release removes the unreleased marker", async () => {
     await readFile(output, "utf8"),
     "# 1.1.0\n\n## Features\n\n- A new feature!\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
+});
+
+test("latest returns the most recent released version", async () => {
+  const { output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.2.0 - UNRELEASED\n\n## Features\n\n- Pending\n\n# 1.1.0\n\n## Features\n\n- Released\n\n# 1.0.0\n\n## Features\n\n- Old\n",
+  );
+
+  assert.deepEqual(await latest({ output }), { version: "1.1.0" });
+});
+
+test("latest treats a prerelease as released", async () => {
+  const { output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.1.0 - UNRELEASED\n\n## Fixes\n\n- Pending\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- Preview\n\n# 1.0.0\n\n## Features\n\n- Old\n",
+  );
+
+  assert.deepEqual(await latest({ output }), { version: "1.0.1-alpha.1" });
+});
+
+test("latest fails without a released version", async () => {
+  const { output } = await makeRoot();
+  await writeFile(output, "# 1.0.0 - UNRELEASED\n\n## Features\n\n- Pending\n");
+
+  await assert.rejects(latest({ output }), /No released version/);
+});
+
+test("CLI latest prints the released version", async () => {
+  const { root, output } = await makeRoot();
+  await writeFile(output, "# 1.0.0\n\n## Features\n\n- Released\n");
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+  const run = promisify(execFile);
+
+  const result = await run(process.execPath, [cli, "latest"], { cwd: root });
+
+  assert.equal(result.stdout, "1.0.0\n");
 });
 
 test("release fails without an unreleased section", async () => {
