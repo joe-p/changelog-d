@@ -27,13 +27,19 @@ Usage:
 Commands:
   generate              Merge pending fragments into an unreleased section and
                         prepend it to the changelog. This is the default command.
-  release               Mark the top unreleased section as released by removing
-                        the " - UNRELEASED" suffix. Fails if fragments are pending.
+  release               Finalize the top unreleased section. Without a
+                        prerelease flag, merges same-version prereleases into a
+                        release. With --alpha/--beta/--rc/--pre, tags the section
+                        as a prerelease instead. Fails if fragments are pending.
 
 Options:
   -d, --dir <path>      Directory containing changelog fragments (default: changelog.d)
   -o, --output <path>   Changelog file, or "-" for stdout (default: CHANGELOG.md)
   -c, --config <path>   Config file defining section order and bump levels (default: ${DEFAULT_CONFIG_FILE})
+      --alpha           Tag the release as a prerelease, e.g. 1.0.1-alpha.1
+      --beta            Tag the release as a beta prerelease, e.g. 1.0.1-beta.1
+      --rc              Tag the release as a release candidate, e.g. 1.0.1-rc.1
+      --pre <id>        Tag the release with a custom prerelease id
       --dry-run         Print the result without writing or clearing
       --no-clear        Keep the fragment files after generating
   -h, --help            Show this help
@@ -43,6 +49,13 @@ Versions are read from the changelog itself. The next version is the highest
 bump level among the pending sections applied to the last released version. While
 the top section is "1.0.0 - UNRELEASED" and 1.0.0 has not been released, the
 version stays 1.0.0 regardless of bump level.
+
+Prereleases:
+  release --alpha renames the top "1.0.1 - UNRELEASED" section to
+  "1.0.1-alpha.1". Repeating it for the same version increments the number; a
+  different channel restarts at .1. New fragments still generate a plain
+  "1.0.1 - UNRELEASED" on top. A plain release then merges the unreleased and
+  all "1.0.1-*" prerelease sections into "1.0.1" and removes them.
 
 Config file:
   A JSON object with a "sections" array listing the allowed sections in the order
@@ -75,6 +88,10 @@ async function main(): Promise<void> {
         config: { type: "string", short: "c" },
         "dry-run": { type: "boolean" },
         "no-clear": { type: "boolean" },
+        alpha: { type: "boolean" },
+        beta: { type: "boolean" },
+        rc: { type: "boolean" },
+        pre: { type: "string" },
         help: { type: "boolean", short: "h" },
         version: { type: "boolean", short: "v" },
       },
@@ -107,17 +124,40 @@ async function main(): Promise<void> {
   const output = values.output ?? "CHANGELOG.md";
   const dryRun = values["dry-run"] ?? false;
 
-  if (command === "release") {
-    const result = await release({ output, dir, dryRun });
-    if (dryRun) {
-      process.stdout.write(`Would release ${result.version} in ${output}.\n`);
-      return;
-    }
-    process.stdout.write(`Released ${result.version} in ${output}.\n`);
-    return;
+  const namedChannels = [
+    values.alpha ? "alpha" : undefined,
+    values.beta ? "beta" : undefined,
+    values.rc ? "rc" : undefined,
+  ].filter((channel): channel is string => channel !== undefined);
+
+  if (namedChannels.length > 1 || (namedChannels.length > 0 && values.pre !== undefined)) {
+    fail("choose only one of --alpha, --beta, --rc or --pre <id>");
+  }
+  const prerelease = namedChannels[0] ?? values.pre;
+
+  if (command !== "release" && prerelease !== undefined) {
+    fail("--alpha, --beta, --rc and --pre can only be used with release");
   }
 
   const config = await loadConfig(values.config);
+
+  if (command === "release") {
+    const result = await release({
+      output,
+      dir,
+      dryRun,
+      prerelease,
+      order: config ? sectionOrder(config) : undefined,
+    });
+    const released = result.prerelease ?? result.version;
+    if (dryRun) {
+      process.stdout.write(`Would release ${released} in ${output}.\n`);
+      return;
+    }
+    process.stdout.write(`Released ${released} in ${output}.\n`);
+    return;
+  }
+
 
   const result = await generate({
     dir,

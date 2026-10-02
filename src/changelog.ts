@@ -12,7 +12,17 @@ import {
   type Section,
   type VersionBlock,
 } from "./generate.ts";
-import { highestBump, nextVersion, parseVersion, type BumpLevel } from "./bump.ts";
+import {
+  baseVersion,
+  highestBase,
+  highestBump,
+  isPrerelease,
+  nextPrerelease,
+  nextVersion,
+  parseVersion,
+  prereleaseOf,
+  type BumpLevel,
+} from "./bump.ts";
 
 export interface GenerateOptions {
   dir: string;
@@ -38,10 +48,13 @@ export interface ReleaseOptions {
   output: string;
   dir?: string;
   dryRun: boolean;
+  prerelease?: string;
+  order?: string[];
 }
 
 export interface ReleaseResult {
   version: string;
+  prerelease?: string;
   written: boolean;
 }
 
@@ -76,16 +89,26 @@ function resolveNextVersion(
   sections: Section[],
   bump: Record<string, BumpLevel>,
 ): { version: string; level: BumpLevel | undefined; previous: string | undefined } {
-  const lastReleased = blocks.find((block) => !block.unreleased)?.version;
   const level = selectBump(sections, bump);
+  const lastReleased = blocks.find(
+    (block) => !block.unreleased && !isPrerelease(block.version),
+  )?.version;
+  const prereleaseBases = blocks
+    .filter((block) => isPrerelease(block.version))
+    .map((block) => baseVersion(block.version));
 
   if (lastReleased === undefined) {
     const base = blocks.find((block) => block.unreleased)?.version ?? "1.0.0";
     const version = base === "1.0.0" ? "1.0.0" : nextVersion(base, level);
-    return { version, level, previous: undefined };
+    return { version: highestBase(version, ...prereleaseBases), level, previous: undefined };
   }
 
-  return { version: nextVersion(lastReleased, level), level, previous: lastReleased };
+  const bumped = nextVersion(lastReleased, level);
+  return {
+    version: highestBase(bumped, ...prereleaseBases),
+    level,
+    previous: lastReleased,
+  };
 }
 
 export async function generate(options: GenerateOptions): Promise<GenerateResult> {
@@ -143,11 +166,6 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
 export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
   const existing = await readFile(options.output, "utf8");
   const blocks = parseChangelog(existing);
-  const top = blocks[0];
-
-  if (!top || !top.unreleased) {
-    throw new Error(`No ${UNRELEASED_MARKER} section found in ${options.output}.`);
-  }
 
   const dir = options.dir ?? "changelog.d";
   const pending = await listFragments(dir);
@@ -157,8 +175,28 @@ export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
     );
   }
 
+  return options.prerelease
+    ? releasePrerelease(options, blocks, options.prerelease)
+    : releaseFinal(options, blocks);
+}
+
+async function releasePrerelease(
+  options: ReleaseOptions,
+  blocks: VersionBlock[],
+  channel: string,
+): Promise<ReleaseResult> {
+  const top = blocks[0];
+  if (!top || !top.unreleased) {
+    throw new Error(`No ${UNRELEASED_MARKER} section found in ${options.output}.`);
+  }
+
   parseVersion(top.version);
-  const entry = renderChangelog(top.sections, top.version);
+  const title = nextPrerelease(
+    top.version,
+    channel,
+    blocks.map((block) => block.version),
+  );
+  const entry = renderChangelog(top.sections, title);
   const remainder = blocks
     .slice(1)
     .map((block) => block.raw)
@@ -168,5 +206,39 @@ export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
     await writeFile(options.output, prependChangelog(remainder, entry));
   }
 
-  return { version: top.version, written: !options.dryRun };
+  return { version: baseVersion(top.version), prerelease: title, written: !options.dryRun };
+}
+
+async function releaseFinal(
+  options: ReleaseOptions,
+  blocks: VersionBlock[],
+): Promise<ReleaseResult> {
+  const top = blocks[0];
+  if (!top || (!top.unreleased && !isPrerelease(top.version))) {
+    throw new Error(`No ${UNRELEASED_MARKER} section found in ${options.output}.`);
+  }
+
+  const base = baseVersion(top.version);
+  const consumed: VersionBlock[] = [];
+  let index = 0;
+  while (index < blocks.length) {
+    const block = blocks[index]!;
+    if (!block.unreleased && prereleaseOf(block.version) === undefined) break;
+    if (baseVersion(block.version) !== base) break;
+    consumed.push(block);
+    index += 1;
+  }
+
+  const sections = mergeSections(consumed.map((block) => block.sections), options.order);
+  const entry = renderChangelog(sections, base);
+  const remainder = blocks
+    .slice(index)
+    .map((block) => block.raw)
+    .join("\n\n");
+
+  if (!options.dryRun) {
+    await writeFile(options.output, prependChangelog(remainder, entry));
+  }
+
+  return { version: base, written: !options.dryRun };
 }

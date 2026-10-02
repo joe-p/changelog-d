@@ -137,3 +137,83 @@ test("release dry run does not write", async () => {
   assert.equal(result.written, false);
   assert.equal(await readFile(output, "utf8"), before);
 });
+
+test("prerelease flow: alpha, more work, then final merge", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+
+  const alpha = await release({ output, dir, dryRun: false, prerelease: "alpha" });
+  assert.deepEqual(alpha, { version: "1.0.1", prerelease: "1.0.1-alpha.1", written: true });
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 1.0.1-alpha.1\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some new fix\n");
+  const generated = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  assert.equal(generated.version, "1.0.1");
+  assert.equal(generated.previous, "1.0.0");
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- Some new fix\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+
+  const final = await release({ output, dir, dryRun: false, order: ORDER });
+  assert.deepEqual(final, { version: "1.0.1", written: true });
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 1.0.1\n\n## Fixes\n\n- Some new fix\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+});
+
+test("prerelease release increments the same channel", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- More\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+
+  const result = await release({ output, dir, dryRun: false, prerelease: "alpha" });
+  assert.equal(result.prerelease, "1.0.1-alpha.2");
+  assert.match(await readFile(output, "utf8"), /^# 1\.0\.1-alpha\.2\n/);
+});
+
+test("prerelease release resets the number when switching channel", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- More\n\n# 1.0.1-alpha.2\n\n## Fixes\n\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+
+  const result = await release({ output, dir, dryRun: false, prerelease: "beta" });
+  assert.equal(result.prerelease, "1.0.1-beta.1");
+});
+
+test("final release promotes a top prerelease without an unreleased section", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.0.1-alpha.2\n\n## Fixes\n\n- More\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+
+  const result = await release({ output, dir, dryRun: false });
+
+  assert.deepEqual(result, { version: "1.0.1", written: true });
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 1.0.1\n\n## Fixes\n\n- More\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+});
+
+test("prerelease release fails without an unreleased section", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(output, "# 1.0.0\n\n## Features\n\n- Released 1.0!\n");
+
+  await assert.rejects(
+    release({ output, dir, dryRun: false, prerelease: "alpha" }),
+    /No UNRELEASED section/,
+  );
+});

@@ -47,6 +47,65 @@ export function applyBump(version: string, level: BumpLevel): string {
   }
 }
 
+export function baseVersion(version: string): string {
+  const { major, minor, patch } = parseVersion(version);
+  return `${major}.${minor}.${patch}`;
+}
+
+export function prereleaseOf(version: string): string | undefined {
+  try {
+    return parseVersion(version).prerelease;
+  } catch {
+    return undefined;
+  }
+}
+
+export function isPrerelease(version: string): boolean {
+  return prereleaseOf(version) !== undefined;
+}
+
+const PRERELEASE_NUMBER_RE = /^([0-9A-Za-z-]+)\.(\d+)$/;
+
+export function prereleaseVersion(base: string, channel: string, number: number): string {
+  return `${baseVersion(base)}-${channel}.${number}`;
+}
+
+export function nextPrerelease(
+  base: string,
+  channel: string,
+  versions: Iterable<string>,
+): string {
+  const target = baseVersion(base);
+  let highest = 0;
+
+  for (const version of versions) {
+    const prerelease = prereleaseOf(version);
+    if (prerelease === undefined || baseVersion(version) !== target) continue;
+
+    const match = PRERELEASE_NUMBER_RE.exec(prerelease);
+    if (!match || match[1] !== channel) continue;
+    highest = Math.max(highest, Number(match[2]));
+  }
+
+  return prereleaseVersion(target, channel, highest + 1);
+}
+
+export function compareBase(a: string, b: string): number {
+  const left = parseVersion(a);
+  const right = parseVersion(b);
+  return (
+    left.major - right.major || left.minor - right.minor || left.patch - right.patch
+  );
+}
+
+export function highestBase(...versions: string[]): string {
+  let highest: string | undefined;
+  for (const version of versions) {
+    if (highest === undefined || compareBase(version, highest) > 0) highest = version;
+  }
+  return highest === undefined ? "0.0.0" : baseVersion(highest);
+}
+
 export function highestBump(levels: Iterable<BumpLevel>): BumpLevel | undefined {
   let highest: BumpLevel | undefined;
   for (const level of levels) {

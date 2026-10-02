@@ -139,6 +139,74 @@ changelog-d release
 `release` fails if the top section is not unreleased, or if `changelog.d` still
 contains pending fragments (run `generate` first).
 
+### Pre-releases
+
+Use `release --alpha` (or `--beta`, `--rc`, `--pre <id>`) to tag the top
+unreleased section as a prerelease instead of finalizing it:
+
+```sh
+changelog-d release --alpha
+```
+
+```md
+# 1.0.1-alpha.1
+
+## Fixes
+
+- Fixed a bug
+
+# 1.0.0
+
+## Features
+
+- Released 1.0!
+```
+
+The number increments for the same version and channel (`1.0.1-alpha.1` becomes
+`1.0.1-alpha.2`), and a different channel restarts at `.1`. New fragments still
+generate a plain `1.0.1 - UNRELEASED` on top of the prerelease:
+
+```md
+# 1.0.1 - UNRELEASED
+
+## Fixes
+
+- Some new fix
+
+# 1.0.1-alpha.1
+
+## Fixes
+
+- Fixed a bug
+
+# 1.0.0
+
+## Features
+
+- Released 1.0!
+```
+
+A plain `release` finalizes the version by merging the unreleased section and all
+same-version prerelease sections into `1.0.1` and removing the prerelease blocks:
+
+```md
+# 1.0.1
+
+## Fixes
+
+- Some new fix
+- Fixed a bug
+
+# 1.0.0
+
+## Features
+
+- Released 1.0!
+```
+
+If there is no unreleased section, a plain `release` promotes the top prerelease
+to a final release.
+
 ### The initial release
 
 When there is no released version yet, the first `generate` creates
@@ -165,6 +233,10 @@ fragments. Use `--no-clear` to write the changelog but keep the fragments, or
 | `-d, --dir <path>` | Directory containing fragments (default: `changelog.d`) |
 | `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`) |
 | `-c, --config <path>` | Config file (default: `changelog-d.json`) |
+| `--alpha` | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1` |
+| `--beta` | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1` |
+| `--rc` | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1` |
+| `--pre <id>` | `release` only: tag with a custom prerelease id |
 | `--dry-run` | Print the result without writing or clearing |
 | `--no-clear` | Keep fragment files after generating |
 | `-h, --help` | Show help |
@@ -209,6 +281,7 @@ await generate({
 });
 
 await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false });
+await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false, prerelease: "alpha" });
 
 const blocks = parseChangelog("# 1.0.0\n\n## Features\n\n- hello\n");
 ```
