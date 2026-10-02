@@ -11,6 +11,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -36,6 +37,10 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -102,4 +107,15 @@ jobs:
             gh release create "v${VERSION}" \
               --title "v${VERSION}" \
               --notes "$(node dist/cli.js notes)"
+          fi
+
+      - name: Stage npm publish
+        if: steps.release.outputs.version != ''
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if npm view "semfrag@${VERSION}" version >/dev/null 2>&1; then
+            echo "semfrag@${VERSION} is already published."
+          else
+            npm stage publish --access public
           fi
