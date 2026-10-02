@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { isBumpLevel, parseVersion, type BumpLevel } from "./bump.ts";
 import { isSectionType, type SectionType, type SectionTypes } from "./generate.ts";
 
-export const DEFAULT_CONFIG_FILE = "changelog-d.json";
+export const DEFAULT_CONFIG_FILE = "semfrag.json";
 
 export interface SectionConfig {
   title: string;

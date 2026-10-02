@@ -1,4 +1,4 @@
-# changelog-d
+# semfrag
 
 Merge `changelog.d` fragments into a changelog, with automatic semantic
 versioning. Think of it as a combination of [scriv](https://github.com/nedbat/scriv)
@@ -10,9 +10,9 @@ language, or your commit convention. Anything that can write a markdown file can
 use it.
 
 Drop small markdown files into a `changelog.d` directory as you work, then run
-`changelog-d generate` to merge them into a single unreleased section that is
+`semfrag generate` to merge them into a single unreleased section that is
 prepended to `CHANGELOG.md`. Fragments are cleared afterwards so the next release
-starts clean. Run `changelog-d release` when you are ready to cut the release.
+starts clean. Run `semfrag release` when you are ready to cut the release.
 
 Versions are read from the changelog itself: there is no version to pass by hand.
 The next version is the highest bump level among the pending sections applied to
@@ -27,7 +27,7 @@ any fragments are cleared.
 ## Install
 
 ```sh
-pnpm add -D changelog-d
+pnpm add -D semfrag
 ```
 
 ## Usage
@@ -42,28 +42,28 @@ section headings:
 ```
 
 ```sh
-changelog-d init [options]
-changelog-d generate [options]
-changelog-d release [options]
-changelog-d latest [options]
-changelog-d notes [options]
+semfrag init [options]
+semfrag generate [options]
+semfrag release [options]
+semfrag latest [options]
+semfrag notes [options]
 ```
 
-`generate` is the default command, so `changelog-d` on its own is equivalent to
-`changelog-d generate`.
+`generate` is the default command, so `semfrag` on its own is equivalent to
+`semfrag generate`.
 
 ### Initialize a changelog
 
 ```sh
-changelog-d init
+semfrag init
 ```
 
 creates `CHANGELOG.md` containing `# 1.0.0 - UNRELEASED`, the `changelog.d`
-directory, and a `changelog-d.json` with the default sections. Pass
+directory, and a `semfrag.json` with the default sections. Pass
 `--initial 0.1.0` to start from a pre-1.0 version instead:
 
 ```sh
-changelog-d init --initial 0.1.0
+semfrag init --initial 0.1.0
 ```
 
 ```md
@@ -110,7 +110,7 @@ and a fragment `changelog.d/fix.md`:
 running:
 
 ```sh
-changelog-d generate
+semfrag generate
 ```
 
 prepends a new unreleased section and clears the fragment:
@@ -137,7 +137,7 @@ Add another fragment `changelog.d/feat.md`:
 - A new feature!
 ```
 
-and run `changelog-d generate` again. The existing unreleased section is merged
+and run `semfrag generate` again. The existing unreleased section is merged
 with the new fragment and the version is recomputed from the last released
 version (`1.0.0`), so the minor bump wins:
 
@@ -164,7 +164,7 @@ version (`1.0.0`), so the minor bump wins:
 When you are ready to ship, remove the ` - UNRELEASED` suffix:
 
 ```sh
-changelog-d release
+semfrag release
 ```
 
 ```md
@@ -191,14 +191,14 @@ contains pending fragments (run `generate` first).
 ### Latest released version
 
 ```sh
-changelog-d latest
+semfrag latest
 ```
 
 prints the most recent released version from the changelog (default
 `CHANGELOG.md`), skipping the top section while it is still ` - UNRELEASED`:
 
 ```sh
-$ changelog-d latest
+$ semfrag latest
 1.1.0
 ```
 
@@ -209,14 +209,14 @@ release. Prereleases count as released, so a top `1.0.1-alpha.1` prints
 ### Release notes
 
 ```sh
-changelog-d notes
+semfrag notes
 ```
 
 prints the changelog body of the most recent released version, without the
 `# X.Y.Z` heading, so it can be piped straight into a release:
 
 ```sh
-gh release create "v$(changelog-d latest)" --notes "$(changelog-d notes)"
+gh release create "v$(semfrag latest)" --notes "$(semfrag notes)"
 ```
 
 Like `latest`, it skips a top ` - UNRELEASED` section, counts prereleases as
@@ -228,7 +228,7 @@ Use `release --alpha` (or `--beta`, `--rc`, `--pre <id>`) to tag the top
 unreleased section as a prerelease instead of finalizing it:
 
 ```sh
-changelog-d release --alpha
+semfrag release --alpha
 ```
 
 ```md
@@ -302,8 +302,8 @@ bump normally from that version.
 ### Preview without writing
 
 ```sh
-changelog-d generate --dry-run
-changelog-d release --dry-run
+semfrag generate --dry-run
+semfrag release --dry-run
 ```
 
 `--dry-run` prints what would happen without writing to the changelog or clearing
@@ -314,33 +314,33 @@ to read a different changelog. Stdout generation never clears fragments.
 
 ### Options
 
-| Option | Description |
+| Option                | Description                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------ |
-| `-d, --dir <path>` | Directory containing fragments (default: `changelog.d`) |
-| `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`) |
-| `--input <path>` | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
-| `-c, --config <path>` | Config file to read or, for `init`, write (default: `changelog-d.json`) |
-| `--initial <version>` | `init` only: starting version, e.g. `0.1.0` or `1.0.0` (default: `1.0.0`) |
-| `--alpha` | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1` |
-| `--beta` | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1` |
-| `--rc` | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1` |
-| `--pre <id>` | `release` only: tag with a custom prerelease id |
-| `--dry-run` | Print the result without writing or clearing |
-| `--no-clear` | Keep fragment files after generating |
-| `-h, --help` | Show help |
-| `-v, --version` | Show the package version |
+| `-d, --dir <path>`    | Directory containing fragments (default: `changelog.d`)                                          |
+| `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`)                                      |
+| `--input <path>`      | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
+| `-c, --config <path>` | Config file to read or, for `init`, write (default: `semfrag.json`)                              |
+| `--initial <version>` | `init` only: starting version, e.g. `0.1.0` or `1.0.0` (default: `1.0.0`)                        |
+| `--alpha`             | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1`                                        |
+| `--beta`              | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1`                                    |
+| `--rc`                | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1`                                    |
+| `--pre <id>`          | `release` only: tag with a custom prerelease id                                                  |
+| `--dry-run`           | Print the result without writing or clearing                                                     |
+| `--no-clear`          | Keep fragment files after generating                                                             |
+| `-h, --help`          | Show help                                                                                        |
+| `-v, --version`       | Show the package version                                                                         |
 
 ## CI/CD
 
 The commands are designed to run unattended, and this repository is itself a
-worked example: because `changelog-d` is language-agnostic, its two GitHub
+worked example: because `semfrag` is language-agnostic, its two GitHub
 Actions workflows can be referenced as a template for any project, whatever it is
 built with.
 
-- [`.github/workflows/pr.yml`](https://github.com/joe-p/changelog-d/blob/main/.github/workflows/pr.yml)
-  runs `changelog-d generate --dry-run` on every pull request, so an invalid
+- [`.github/workflows/pr.yml`](https://github.com/joe-p/semfrag/blob/main/.github/workflows/pr.yml)
+  runs `semfrag generate --dry-run` on every pull request, so an invalid
   fragment fails the check before it can reach the changelog.
-- [`.github/workflows/release.yml`](https://github.com/joe-p/changelog-d/blob/main/.github/workflows/release.yml)
+- [`.github/workflows/release.yml`](https://github.com/joe-p/semfrag/blob/main/.github/workflows/release.yml)
   runs on every push to `main`: it merges pending fragments with `generate`,
   finalizes the unreleased section with `release`, then commits, tags the version
   from `latest`, and creates a GitHub release whose body is `notes`. The tag and
@@ -350,15 +350,15 @@ Together the two commands produce automatic changelogs, release notes, and
 semantic versions without a version to pass by hand:
 
 ```sh
-changelog-d generate          # merge fragments into the unreleased section
-changelog-d release           # drop the UNRELEASED suffix
-tag="v$(changelog-d latest)"  # tag the released version
-gh release create "$tag" --notes "$(changelog-d notes)"
+semfrag generate          # merge fragments into the unreleased section
+semfrag release           # drop the UNRELEASED suffix
+tag="v$(semfrag latest)"  # tag the released version
+gh release create "$tag" --notes "$(semfrag notes)"
 ```
 
 ## Configuration
 
-By default `changelog-d` looks for `changelog-d.json`. It lists the allowed
+By default `semfrag` looks for `semfrag.json`. It lists the allowed
 sections in the order they should appear, along with the semantic version bump
 each section implies:
 
@@ -416,12 +416,12 @@ Replace `oldThing()` with `newThing()`.
 ## Programmatic API
 
 ```ts
-import { generate, init, latest, notes, release, parseChangelog } from "changelog-d";
+import { generate, init, latest, notes, release, parseChangelog } from "semfrag";
 
 await init({
   output: "CHANGELOG.md",
   dir: "changelog.d",
-  config: "changelog-d.json",
+  config: "semfrag.json",
   version: "0.1.0",
   dryRun: false,
 });

@@ -1,10 +1,10 @@
 {
-  "name": "changelog-d",
+  "name": "semfrag",
   "version": "0.1.0",
   "description": "Merge changelog.d fragments into a changelog with automatic semantic versioning",
   "type": "module",
   "bin": {
-    "changelog-d": "dist/cli.js"
+    "semfrag": "dist/cli.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
