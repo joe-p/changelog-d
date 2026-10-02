@@ -314,21 +314,47 @@ to read a different changelog. Stdout generation never clears fragments.
 
 ### Options
 
-| Option                | Description                                                                                      |
+| Option | Description |
 | --------------------- | ------------------------------------------------------------------------------------------------ |
-| `-d, --dir <path>`    | Directory containing fragments (default: `changelog.d`)                                          |
-| `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`)                                      |
-| `--input <path>`      | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
-| `-c, --config <path>` | Config file to read or, for `init`, write (default: `changelog-d.json`)                          |
-| `--initial <version>` | `init` only: starting version, e.g. `0.1.0` or `1.0.0` (default: `1.0.0`)                        |
-| `--alpha`             | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1`                                        |
-| `--beta`              | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1`                                    |
-| `--rc`                | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1`                                    |
-| `--pre <id>`          | `release` only: tag with a custom prerelease id                                                  |
-| `--dry-run`           | Print the result without writing or clearing                                                     |
-| `--no-clear`          | Keep fragment files after generating                                                             |
-| `-h, --help`          | Show help                                                                                        |
-| `-v, --version`       | Show the package version                                                                         |
+| `-d, --dir <path>` | Directory containing fragments (default: `changelog.d`) |
+| `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`) |
+| `--input <path>` | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
+| `-c, --config <path>` | Config file to read or, for `init`, write (default: `changelog-d.json`) |
+| `--initial <version>` | `init` only: starting version, e.g. `0.1.0` or `1.0.0` (default: `1.0.0`) |
+| `--alpha` | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1` |
+| `--beta` | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1` |
+| `--rc` | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1` |
+| `--pre <id>` | `release` only: tag with a custom prerelease id |
+| `--dry-run` | Print the result without writing or clearing |
+| `--no-clear` | Keep fragment files after generating |
+| `-h, --help` | Show help |
+| `-v, --version` | Show the package version |
+
+## CI/CD
+
+The commands are designed to run unattended, and this repository is itself a
+worked example: because `changelog-d` is language-agnostic, its two GitHub
+Actions workflows can be referenced as a template for any project, whatever it is
+built with.
+
+- [`.github/workflows/pr.yml`](https://github.com/joe-p/changelog-d/blob/main/.github/workflows/pr.yml)
+  runs `changelog-d generate --dry-run` on every pull request, so an invalid
+  fragment fails the check before it can reach the changelog.
+- [`.github/workflows/release.yml`](https://github.com/joe-p/changelog-d/blob/main/.github/workflows/release.yml)
+  runs on every push to `main`: it merges pending fragments with `generate`,
+  finalizes the unreleased section with `release`, then commits, tags the version
+  from `latest`, and creates a GitHub release whose body is `notes`. The tag and
+  release are the semantic version derived from the fragment sections.
+
+Together the two commands produce automatic changelogs, release notes, and
+semantic versions without a version to pass by hand:
+
+```sh
+changelog-d generate          # merge fragments into the unreleased section
+changelog-d release           # drop the UNRELEASED suffix
+tag="v$(changelog-d latest)"  # tag the released version
+gh release create "$tag" --notes "$(changelog-d notes)"
+```
 
 ## Configuration
 
