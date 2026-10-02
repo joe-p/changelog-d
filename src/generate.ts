@@ -1,3 +1,5 @@
+import { parseVersion } from "./bump.ts";
+
 export const SECTION_TYPES = ["list", "raw"] as const;
 
 export type SectionType = (typeof SECTION_TYPES)[number];
@@ -45,8 +47,16 @@ export function parseFragment(content: string, types: SectionTypes = {}): Sectio
     current.body = rawLines.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
   };
 
-  for (const rawLine of content.split(/\r?\n/)) {
-    const match = SECTION_RE.exec(rawLine);
+  let fence: string | undefined;
+  for (const [index, rawLine] of content.split(/\r?\n/).entries()) {
+    const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(rawLine);
+    const inFence = fence !== undefined;
+    if (fenceMatch) {
+      const marker = fenceMatch[1]!;
+      if (!fence) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length && rawLine.trim() === marker) fence = undefined;
+    }
+    const match = !inFence && !fenceMatch ? SECTION_RE.exec(rawLine) : null;
     if (match) {
       flushRaw();
       const title = match[1]!;
@@ -60,9 +70,12 @@ export function parseFragment(content: string, types: SectionTypes = {}): Sectio
       sections.push(current);
       continue;
     }
-    if (!current) continue;
+    if (!current) {
+      if (rawLine.trim() !== "") throw new Error(`Line ${index + 1}: expected a ## section heading before content.`);
+      continue;
+    }
     if (rawLines !== undefined) {
-      if (RAW_HEADING_RE.test(rawLine)) {
+      if (!inFence && RAW_HEADING_RE.test(rawLine)) {
         throw new Error(
           `Raw section "## ${current.title}" may not contain a level-1 or level-2 heading: ${JSON.stringify(
             rawLine.trim(),
@@ -72,12 +85,43 @@ export function parseFragment(content: string, types: SectionTypes = {}): Sectio
       rawLines.push(rawLine);
       continue;
     }
-    if (rawLine.trim() === "") continue;
+    if (!inFence && RAW_HEADING_RE.test(rawLine)) {
+      throw new Error(`Line ${index + 1}: unexpected heading ${JSON.stringify(rawLine)}. Use ### or deeper.`);
+    }
     current.lines.push(rawLine.trimEnd());
   }
 
   flushRaw();
+  for (const section of sections) {
+    while (section.lines[0] === "") section.lines.shift();
+    while (section.lines.at(-1) === "") section.lines.pop();
+  }
   return sections;
+}
+
+function listItems(lines: string[]): string[][] {
+  const itemPattern = /^( *)(?:[-+*]|\d+[.)])\s+/;
+  let fence: string | undefined;
+  const matches = lines.map((line) => {
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (marker) {
+      if (!fence) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = undefined;
+      return null;
+    }
+    return fence ? null : itemPattern.exec(line);
+  });
+  const indents = matches.flatMap((match) => {
+    return match ? [match[1]!.length] : [];
+  });
+  const indent = Math.min(...indents);
+  const items: string[][] = [];
+  for (const [index, line] of lines.entries()) {
+    const match = matches[index];
+    if (items.length === 0 || (match && match[1]!.length === indent)) items.push([]);
+    items.at(-1)!.push(line);
+  }
+  return items;
 }
 
 export function mergeSections(groups: Section[][], order?: string[], types: SectionTypes = {}): Section[] {
@@ -120,8 +164,13 @@ export function mergeSections(groups: Section[][], order?: string[], types: Sect
         byTitle.set(section.title, merged);
         ordered.push(merged);
       }
-      for (const line of section.lines) {
-        if (!merged.lines.includes(line)) merged.lines.push(line);
+      const seen = new Set(listItems(merged.lines).map((item) => item.join("\n").replace(/\n+$/, "")));
+      for (const item of listItems(section.lines)) {
+        const key = item.join("\n").replace(/\n+$/, "");
+        if (!seen.has(key)) {
+          merged.lines.push(...item);
+          seen.add(key);
+        }
       }
     }
   }
@@ -132,17 +181,33 @@ export function mergeSections(groups: Section[][], order?: string[], types: Sect
 export function mergeFragments(fragments: Fragment[], order?: string[], types: SectionTypes = {}): Section[] {
   const sorted = [...fragments].sort((a, b) => a.name.localeCompare(b.name));
   return mergeSections(
-    sorted.map((fragment) => parseFragment(fragment.content, types)),
+    sorted.map((fragment) => {
+      try {
+        const sections = parseFragment(fragment.content, types);
+        if (!sections.some((section) => section.lines.length > 0 || section.body?.trim())) {
+          throw new Error("Fragment contains no section entries.");
+        }
+        if (order) for (const section of sections) assertKnownSection(section.title, order);
+        return sections;
+      } catch (error) {
+        throw new Error(`${fragment.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }),
     order,
     types,
   );
 }
 
 export function parseChangelog(markdown: string, types: SectionTypes = {}): VersionBlock[] {
+  return parseChangelogDocument(markdown, types).blocks;
+}
+
+export function parseChangelogDocument(markdown: string, types: SectionTypes = {}): { preamble: string; blocks: VersionBlock[] } {
   const lines = markdown.split(/\r?\n/);
   const blocks: VersionBlock[] = [];
   let start = -1;
   let heading: { version: string; unreleased: boolean } | undefined;
+  let firstVersion = -1;
 
   const push = (end: number): void => {
     if (!heading || start < 0) return;
@@ -154,13 +219,28 @@ export function parseChangelog(markdown: string, types: SectionTypes = {}): Vers
     });
   };
 
+  let fence: string | undefined;
   for (const [index, line] of lines.entries()) {
+    const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[1]!;
+      if (!fence) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = undefined;
+      continue;
+    }
+    if (fence) continue;
     const match = VERSION_HEADING_RE.exec(line);
     if (!match) continue;
 
-    push(index);
     const title = match[1]!;
     const unreleased = UNRELEASED_HEADING_RE.exec(title);
+    if (!unreleased && !/^v?\d/.test(title)) {
+      if (start < 0) continue;
+      throw new Error(`Unexpected level-1 heading: ${JSON.stringify(title)}.`);
+    }
+    parseVersion(unreleased ? unreleased[1]!.trim() : title);
+    push(index);
+    if (firstVersion < 0) firstVersion = index;
     heading = unreleased
       ? { version: unreleased[1]!.trim(), unreleased: true }
       : { version: title, unreleased: false };
@@ -168,7 +248,7 @@ export function parseChangelog(markdown: string, types: SectionTypes = {}): Vers
   }
 
   push(lines.length);
-  return blocks;
+  return { preamble: lines.slice(0, firstVersion < 0 ? lines.length : firstVersion).join("\n"), blocks };
 }
 
 function assertKnownSection(title: string, order: string[]): void {

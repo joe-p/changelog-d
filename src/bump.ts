@@ -16,11 +16,12 @@ export interface ParsedVersion {
   build?: string;
 }
 
-const VERSION_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/;
+const VERSION_RE = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 export function parseVersion(version: string): ParsedVersion {
   const match = VERSION_RE.exec(version.trim());
-  if (!match) {
+  if (!match || match.slice(1, 4).some((part) => !Number.isSafeInteger(Number(part))) ||
+      match[4]?.split(".").some((part) => /^\d+$/.test(part) && part.length > 1 && part.startsWith("0"))) {
     throw new Error(`Invalid semantic version: "${version}". Expected MAJOR.MINOR.PATCH.`);
   }
 
@@ -39,11 +40,11 @@ export function applyBump(version: string, level: BumpLevel): string {
 
   switch (level) {
     case "MAJOR":
-      return `${major + 1}.0.0`;
+      return checkedVersion(`${major + 1}.0.0`);
     case "MINOR":
-      return `${major}.${minor + 1}.0`;
+      return checkedVersion(`${major}.${minor + 1}.0`);
     case "PATCH":
-      return `${major}.${minor}.${patch + 1}`;
+      return checkedVersion(`${major}.${minor}.${patch + 1}`);
   }
 }
 
@@ -64,10 +65,16 @@ export function isPrerelease(version: string): boolean {
   return prereleaseOf(version) !== undefined;
 }
 
-const PRERELEASE_NUMBER_RE = /^([0-9A-Za-z-]+)\.(\d+)$/;
+function checkedVersion(version: string): string {
+  parseVersion(version);
+  return version;
+}
 
 export function prereleaseVersion(base: string, channel: string, number: number): string {
-  return `${baseVersion(base)}-${channel}.${number}`;
+  if (!/^[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*$/.test(channel) || !Number.isSafeInteger(number) || number < 1) {
+    throw new Error("Invalid prerelease channel or number.");
+  }
+  return checkedVersion(`${baseVersion(base)}-${channel}.${number}`);
 }
 
 export function nextPrerelease(
@@ -82,7 +89,7 @@ export function nextPrerelease(
     const prerelease = prereleaseOf(version);
     if (prerelease === undefined || baseVersion(version) !== target) continue;
 
-    const match = PRERELEASE_NUMBER_RE.exec(prerelease);
+    const match = /^(.*)\.(\d+)$/.exec(prerelease);
     if (!match || match[1] !== channel) continue;
     highest = Math.max(highest, Number(match[2]));
   }

@@ -17,8 +17,43 @@ test("parseFragment splits sections", () => {
   ]);
 });
 
-test("parseFragment ignores content before the first heading", () => {
-  assert.deepEqual(parseFragment("intro\n\n## Fixes\n\n- a\n"), [{ title: "Fixes", lines: ["- a"] }]);
+test("parseFragment rejects content before the first heading", () => {
+  assert.throws(() => parseFragment("intro\n\n## Fixes\n\n- a\n"), /Line 1: expected a ## section heading/);
+});
+
+test("merging keeps multiline list items intact and deduplicates whole items", () => {
+  const fragments = [
+    { name: "a.md", content: "## Fixes\n- Fix A\n  - Details\n\n  More details.\n" },
+    { name: "b.md", content: "## Fixes\n- Fix B\n  - Details\n" },
+    { name: "c.md", content: "## Fixes\n- Fix A\n  - Details\n\n  More details.\n" },
+  ];
+  assert.equal(renderChangelog(mergeFragments(fragments)),
+    "# Unreleased\n\n## Fixes\n\n- Fix A\n  - Details\n\n  More details.\n- Fix B\n  - Details\n");
+});
+
+test("fragment validation reports filenames and rejects empty fragments", () => {
+  for (const content of ["", "## Fixes\n", "Missing a heading"]) {
+    assert.throws(() => mergeFragments([{ name: "bad.md", content }]), /bad\.md:/);
+  }
+});
+
+test("list item deduplication preserves fenced examples and blank lines between items", () => {
+  const content = "## Fixes\n\n- Example\n  ```md\n- Sample\n- Sample\n  ```\n\n- Another fix\n";
+  const sections = mergeFragments([{ name: "a.md", content }, { name: "b.md", content }]);
+  assert.equal(renderChangelog(sections), `# Unreleased\n\n${content}`);
+});
+
+test("changelog title and introduction are not version blocks", () => {
+  const blocks = parseChangelog("# Changelog\n\nProject notes.\n\n# 1.0.0\n\n## Fixes\n- fix\n");
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0]?.version, "1.0.0");
+});
+
+test("fenced headings remain raw content rather than delimiters", () => {
+  const content = "# 1.0.0\n\n## Details\n\n```md\n# Example\n## Example section\n```\n";
+  const blocks = parseChangelog(content, { Details: "raw" });
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0]?.sections[0]?.body, "```md\n# Example\n## Example section\n```");
 });
 
 test("parseFragment preserves raw markdown for raw sections", () => {

@@ -13,6 +13,11 @@ The next version is the highest bump level among the pending sections applied to
 the last released version. Until it is released, a section is titled
 `X.Y.Z - UNRELEASED`.
 
+A changelog title and introduction before the first version heading are preserved.
+Fragments must start with a `##` section heading and contain at least one entry;
+invalid fragments are reported by filename before the changelog is written or
+any fragments are cleared.
+
 ## Install
 
 ```sh
@@ -224,7 +229,9 @@ changelog-d release --dry-run
 
 `--dry-run` prints what would happen without writing to the changelog or clearing
 fragments. Use `--no-clear` to write the changelog but keep the fragments, or
-`-o -` to write the generated section to stdout.
+`-o -` to write the generated section to stdout. Stdout generation reads the
+version and existing unreleased content from `CHANGELOG.md`; use `--input <path>`
+to read a different changelog. Stdout generation never clears fragments.
 
 ### Options
 
@@ -232,6 +239,7 @@ fragments. Use `--no-clear` to write the changelog but keep the fragments, or
 | --- | --- |
 | `-d, --dir <path>` | Directory containing fragments (default: `changelog.d`) |
 | `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`) |
+| `--input <path>` | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
 | `-c, --config <path>` | Config file (default: `changelog-d.json`) |
 | `--alpha` | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1` |
 | `--beta` | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1` |
@@ -270,9 +278,10 @@ version. For example, `Breaking Changes` and `Features` fragments on top of
 
 ### Section types
 
-A `list` section (the default) holds markdown list items. Blank lines are removed
-and duplicate lines across fragments are collapsed, so `- Fix a bug` only ever
-appears once.
+A `list` section (the default) holds markdown list items. Multiline items retain
+their continuation lines, nested lists, code blocks, and internal blank lines.
+Identical complete items across fragments are collapsed, so `- Fix a bug` only
+ever appears once; repeated lines within different items are preserved.
 
 A `raw` section preserves the fragment markdown verbatim, including blank lines,
 indentation, code blocks and nested headings. This is useful for prose or a
@@ -280,7 +289,7 @@ migration guide. When several fragments contribute to the same raw section their
 bodies are concatenated with a blank line between them; an identical body is
 never added twice.
 
-The only restriction is that a raw section may not contain a level-1 (`#`) or
+Outside fenced code blocks, a raw section may not contain a level-1 (`#`) or
 level-2 (`##`) heading, because those delimit versions and sections. Use `###`
 or deeper for nested headings:
 

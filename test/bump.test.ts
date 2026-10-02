@@ -29,6 +29,18 @@ test("parseVersion accepts plain, v-prefixed and prerelease versions", () => {
 test("parseVersion rejects invalid versions", () => {
   assert.throws(() => parseVersion("1.2"), /Invalid semantic version/);
   assert.throws(() => parseVersion("not-a-version"), /Invalid semantic version/);
+  for (const version of ["01.2.3", "1.02.3", "1.2.03", "1.2.3-alpha..1", "1.2.3-alpha.01", "1.2.3+build..1", "9007199254740992.0.0"]) {
+    assert.throws(() => parseVersion(version), /Invalid semantic version/);
+  }
+  assert.equal(parseVersion("1.2.3+build.01").build, "build.01");
+});
+
+test("custom dotted prerelease channels increment and invalid channels are rejected", () => {
+  assert.equal(nextPrerelease("1.2.3", "preview.test", ["1.2.3-preview.test.1", "1.2.3-preview.test.3"]), "1.2.3-preview.test.4");
+  for (const channel of ["", "bad channel", "alpha..test", "alpha+build", "01"]) {
+    assert.throws(() => nextPrerelease("1.2.3", channel, []), /Invalid/);
+  }
+  assert.throws(() => applyBump("9007199254740991.0.0", "MAJOR"), /Invalid semantic version/);
 });
 
 test("applyBump bumps and resets the right components", () => {

@@ -1,10 +1,11 @@
-import { readdir, readFile, writeFile, rm } from "node:fs/promises";
+import { readdir, readFile, writeFile, rm, rename, stat, realpath } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import {
   mergeFragments,
   mergeSections,
-  parseChangelog,
+  parseChangelogDocument,
   prependChangelog,
   renderChangelog,
   UNRELEASED_MARKER,
@@ -28,6 +29,7 @@ import {
 export interface GenerateOptions {
   dir: string;
   output: string;
+  input?: string;
   clear: boolean;
   dryRun: boolean;
   order?: string[];
@@ -69,6 +71,25 @@ async function listFragments(dir: string): Promise<string[]> {
     .filter((entry) => entry.isFile() && !entry.name.startsWith(".") && entry.name.endsWith(".md"))
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
+}
+
+async function atomicWrite(file: string, content: string): Promise<void> {
+  // Resolve symlinks through the existing destination rather than replacing them.
+  const destination = existsSync(file) ? await realpath(file) : path.resolve(file);
+  const temporary = path.join(path.dirname(destination), `.${path.basename(destination)}.${randomUUID()}.tmp`);
+  try {
+    const mode = existsSync(destination) ? (await stat(destination)).mode : undefined;
+    await writeFile(temporary, content, { flag: "wx", mode });
+    await rename(temporary, destination);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
+function withPreamble(preamble: string, content: string): string {
+  if (preamble === "") return content;
+  const separator = preamble.endsWith("\n\n") ? "" : preamble.endsWith("\n") ? "\n" : "\n\n";
+  return `${preamble}${separator}${content}`;
 }
 
 export async function readFragments(dir: string): Promise<Fragment[]> {
@@ -115,13 +136,17 @@ function resolveNextVersion(
 }
 
 export async function generate(options: GenerateOptions): Promise<GenerateResult> {
-  const names = await listFragments(options.dir);
   const fragments = await readFragments(options.dir);
+  const names = fragments.map((fragment) => fragment.name);
   const toStdout = options.output === "-";
+  const input = options.input ?? (toStdout ? "CHANGELOG.md" : options.output);
   const existing =
-    !toStdout && existsSync(options.output) ? await readFile(options.output, "utf8") : "";
+    existsSync(input) ? await readFile(input, "utf8") : "";
 
-  const blocks = parseChangelog(existing, options.types);
+  const { blocks, preamble } = parseChangelogDocument(existing, options.types);
+  if (blocks.slice(1).some((block) => block.unreleased)) {
+    throw new Error("An UNRELEASED section must appear only at the top of the changelog.");
+  }
   const existingUnreleased = blocks[0]?.unreleased ? blocks[0].sections : [];
   const sections = mergeSections(
     [existingUnreleased, mergeFragments(fragments, options.order, options.types)],
@@ -153,14 +178,21 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
 
   const written = !options.dryRun && !toStdout;
   if (written) {
-    await writeFile(options.output, prependChangelog(remainder, entry));
+    await atomicWrite(options.output, withPreamble(preamble, prependChangelog(remainder, entry)));
   }
 
   const cleared: string[] = [];
   if (options.clear && written && names.length > 0) {
-    for (const name of names) {
-      await rm(path.join(options.dir, name));
-      cleared.push(name);
+    for (const fragment of fragments) {
+      const file = path.join(options.dir, fragment.name);
+      // Keep fragments edited since the snapshot; a later generate can consume them.
+      try {
+        if (await readFile(file, "utf8") !== fragment.content) continue;
+        await rm(file);
+        cleared.push(fragment.name);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
     }
   }
 
@@ -169,7 +201,7 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
 
 export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
   const existing = await readFile(options.output, "utf8");
-  const blocks = parseChangelog(existing, options.types);
+  const { blocks, preamble } = parseChangelogDocument(existing, options.types);
 
   const dir = options.dir ?? "changelog.d";
   const pending = await listFragments(dir);
@@ -179,15 +211,16 @@ export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
     );
   }
 
-  return options.prerelease
-    ? releasePrerelease(options, blocks, options.prerelease)
-    : releaseFinal(options, blocks);
+  return options.prerelease !== undefined
+    ? releasePrerelease(options, blocks, options.prerelease, preamble)
+    : releaseFinal(options, blocks, preamble);
 }
 
 async function releasePrerelease(
   options: ReleaseOptions,
   blocks: VersionBlock[],
   channel: string,
+  preamble: string,
 ): Promise<ReleaseResult> {
   const top = blocks[0];
   if (!top || !top.unreleased) {
@@ -207,7 +240,7 @@ async function releasePrerelease(
     .join("\n\n");
 
   if (!options.dryRun) {
-    await writeFile(options.output, prependChangelog(remainder, entry));
+    await atomicWrite(options.output, withPreamble(preamble, prependChangelog(remainder, entry)));
   }
 
   return { version: baseVersion(top.version), prerelease: title, written: !options.dryRun };
@@ -216,6 +249,7 @@ async function releasePrerelease(
 async function releaseFinal(
   options: ReleaseOptions,
   blocks: VersionBlock[],
+  preamble: string,
 ): Promise<ReleaseResult> {
   const top = blocks[0];
   if (!top || (!top.unreleased && !isPrerelease(top.version))) {
@@ -241,7 +275,7 @@ async function releaseFinal(
     .join("\n\n");
 
   if (!options.dryRun) {
-    await writeFile(options.output, prependChangelog(remainder, entry));
+    await atomicWrite(options.output, withPreamble(preamble, prependChangelog(remainder, entry)));
   }
 
   return { version: base, written: !options.dryRun };

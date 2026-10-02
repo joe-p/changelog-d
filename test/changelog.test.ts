@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import fs, { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -276,4 +280,129 @@ test("prerelease release fails without an unreleased section", async () => {
     release({ output, dir, dryRun: false, prerelease: "alpha" }),
     /No UNRELEASED section/,
   );
+});
+
+test("generate and both release modes preserve the changelog preamble", async () => {
+  const { dir, output } = await makeRoot();
+  const preamble = "# Changelog\n\nRelease notes for this project.\n\n";
+  await writeFile(output, `${preamble}# 1.0.0\n\n## Fixes\n\n- Old fix\n`);
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- New fix\n");
+  await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  assert.ok((await readFile(output, "utf8")).startsWith(`${preamble}# 1.0.1 - UNRELEASED\n`));
+  await release({ dir, output, dryRun: false, prerelease: "preview.test" });
+  assert.ok((await readFile(output, "utf8")).startsWith(`${preamble}# 1.0.1-preview.test.1\n`));
+  await release({ dir, output, dryRun: false });
+  assert.ok((await readFile(output, "utf8")).startsWith(`${preamble}# 1.0.1\n`));
+});
+
+test("generate preserves a preamble when creating the first version", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(output, "# Changelog\n\nProject notes.\n");
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n- fix\n");
+  await generate({ dir, output, clear: true, dryRun: false });
+  assert.ok((await readFile(output, "utf8")).startsWith("# Changelog\n\nProject notes.\n\n# 1.0.0 - UNRELEASED"));
+});
+
+test("invalid fragments leave the changelog and all fragments untouched", async () => {
+  const { dir, output } = await makeRoot();
+  const original = "# 1.0.0\n\n## Fixes\n- Old fix\n";
+  await writeFile(output, original);
+  await writeFile(path.join(dir, "good.md"), "## Fixes\n- Good fix\n");
+  await writeFile(path.join(dir, "bad.md"), "Forgot the heading\n");
+  await assert.rejects(generate({ dir, output, clear: true, dryRun: false }), /bad\.md: Line 1/);
+  assert.equal(await readFile(output, "utf8"), original);
+  assert.deepEqual(await readdir(dir), ["bad.md", "good.md"]);
+});
+
+test("invalid prerelease channels leave the changelog untouched", async () => {
+  const { dir, output } = await makeRoot();
+  const original = "# 1.0.1 - UNRELEASED\n\n## Fixes\n- fix\n";
+  await writeFile(output, original);
+  for (const prerelease of ["", "alpha+build", "alpha..test"]) {
+    await assert.rejects(release({ dir, output, dryRun: false, prerelease }), /Invalid/);
+    assert.equal(await readFile(output, "utf8"), original);
+  }
+});
+
+test("invalid version headings and misplaced unreleased sections cannot discard history", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
+  for (const original of [
+    "# 01.2.3\n\n## Fixes\n- old\n",
+    "# 1.2.3\n\n## Fixes\n- old\n\n# 1.2.4 - UNRELEASED\n\n## Fixes\n- pending\n",
+  ]) {
+    await writeFile(output, original);
+    await assert.rejects(generate({ dir, output, clear: true, dryRun: false }), /Invalid semantic version|only at the top/);
+    assert.equal(await readFile(output, "utf8"), original);
+    assert.deepEqual(await readdir(dir), ["fix.md"]);
+  }
+});
+
+test("stdout generation reads the configured input without writing or clearing", async () => {
+  const { dir, output } = await makeRoot();
+  const original = "# 2.3.4\n\n## Fixes\n- old\n";
+  await writeFile(output, original);
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
+  const result = await generate({ dir, output: "-", input: output, clear: true, dryRun: false, bump: BUMP });
+  assert.equal(result.version, "2.3.5");
+  assert.equal(result.written, false);
+  assert.deepEqual(result.cleared, []);
+  assert.equal(await readFile(output, "utf8"), original);
+  assert.deepEqual(await readdir(dir), ["fix.md"]);
+});
+
+test("fragment edits and additions during writing are kept for the next generation", async (t) => {
+  const { dir, output } = await makeRoot();
+  const file = path.join(dir, "fix.md");
+  await writeFile(file, "## Fixes\n- original\n");
+  const rename = fs.rename;
+  t.mock.method(fs, "rename", async (...args: Parameters<typeof rename>) => {
+    await rename(...args);
+    await writeFile(file, "## Fixes\n- edited\n");
+    await writeFile(path.join(dir, "new.md"), "## Fixes\n- added\n");
+  });
+  syncBuiltinESMExports();
+  try {
+    const result = await generate({ dir, output, clear: true, dryRun: false });
+    assert.deepEqual(result.fragments, ["fix.md"]);
+    assert.deepEqual(result.cleared, []);
+    assert.match(await readFile(output, "utf8"), /- original/);
+    assert.deepEqual(await readdir(dir), ["fix.md", "new.md"]);
+    assert.equal(await readFile(file, "utf8"), "## Fixes\n- edited\n");
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});
+
+test("failed atomic replacement leaves the original and fragments intact", async (t) => {
+  const { root, dir, output } = await makeRoot();
+  const original = "# 1.0.0\n\n## Fixes\n- old\n";
+  await writeFile(output, original);
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
+  t.mock.method(fs, "rename", async () => { throw new Error("Simulated rename failure"); });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(generate({ dir, output, clear: true, dryRun: false }), /Simulated rename failure/);
+    assert.equal(await readFile(output, "utf8"), original);
+    assert.deepEqual(await readdir(dir), ["fix.md"]);
+    assert.deepEqual((await readdir(root)).sort(), ["CHANGELOG.md", "changelog.d"]);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+});
+
+test("CLI stdout uses the default changelog and previews existing unreleased content", async () => {
+  const { root, dir, output } = await makeRoot();
+  await writeFile(output, "# 2.3.4\n\n## Fixes\n- old\n");
+  await writeFile(path.join(root, "changelog-d.json"), JSON.stringify({ sections: [{ title: "Fixes", bump: "PATCH" }] }));
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+  const run = promisify(execFile);
+  const preview = await run(process.execPath, [cli, "-o", "-"], { cwd: root });
+  assert.match(preview.stdout, /^# 2\.3\.5 - UNRELEASED/);
+  await generate({ dir, output, clear: true, dryRun: false, bump: BUMP });
+  const pending = await run(process.execPath, [cli, "--dry-run"], { cwd: root });
+  assert.match(pending.stdout, /^# 2\.3\.5 - UNRELEASED/);
 });

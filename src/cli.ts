@@ -36,6 +36,7 @@ Commands:
 Options:
   -d, --dir <path>      Directory containing changelog fragments (default: changelog.d)
   -o, --output <path>   Changelog file, or "-" for stdout (default: CHANGELOG.md)
+      --input <path>    Existing changelog to read (default: output, or CHANGELOG.md for stdout)
   -c, --config <path>   Config file defining section order and bump levels (default: ${DEFAULT_CONFIG_FILE})
       --alpha           Tag the release as a prerelease, e.g. 1.0.1-alpha.1
       --beta            Tag the release as a beta prerelease, e.g. 1.0.1-beta.1
@@ -73,10 +74,11 @@ Config file:
       ]
     }
 
-  A "list" section removes blank lines and drops duplicate lines. A "raw"
+  A "list" section preserves multiline items and drops duplicate items. A "raw"
   section preserves its markdown verbatim, so it may contain nested markdown
   such as blank lines, code blocks and "###" headings. It may not contain "#" or
-  "##" headings. Sections found in fragments that are not listed cause an error.
+  "##" headings outside fenced code. Sections found in fragments that are not
+  listed cause an error.
 `;
 
 function fail(message: string): never {
@@ -91,6 +93,7 @@ async function main(): Promise<void> {
       options: {
         dir: { type: "string", short: "d" },
         output: { type: "string", short: "o" },
+        input: { type: "string" },
         config: { type: "string", short: "c" },
         "dry-run": { type: "boolean" },
         "no-clear": { type: "boolean" },
@@ -144,6 +147,9 @@ async function main(): Promise<void> {
   if (command !== "release" && prerelease !== undefined) {
     fail("--alpha, --beta, --rc and --pre can only be used with release");
   }
+  if (command === "release" && values.input !== undefined) {
+    fail("--input can only be used with generate");
+  }
 
   const config = await loadConfig(values.config);
 
@@ -169,6 +175,7 @@ async function main(): Promise<void> {
   const result = await generate({
     dir,
     output,
+    input: values.input,
     clear: !values["no-clear"],
     dryRun,
     order: config ? sectionOrder(config) : undefined,
@@ -176,7 +183,7 @@ async function main(): Promise<void> {
     types: config ? sectionTypes(config) : undefined,
   });
 
-  if (result.fragments.length === 0) {
+  if (result.entry === "") {
     process.stdout.write("No changelog fragments found.\n");
     return;
   }
