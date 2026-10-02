@@ -1,0 +1,40 @@
+{
+  "name": "changelog-d",
+  "version": "1.0.0",
+  "description": "Merge changelog.d fragments into an Unreleased changelog section",
+  "type": "module",
+  "bin": {
+    "changelog-d": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "changelog",
+    "changelog.d",
+    "release"
+  ],
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.0.6",
+      "onFail": "download"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  }
+}
