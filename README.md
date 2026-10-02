@@ -235,20 +235,20 @@ to read a different changelog. Stdout generation never clears fragments.
 
 ### Options
 
-| Option | Description |
-| --- | --- |
-| `-d, --dir <path>` | Directory containing fragments (default: `changelog.d`) |
-| `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`) |
-| `--input <path>` | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
-| `-c, --config <path>` | Config file (default: `changelog-d.json`) |
-| `--alpha` | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1` |
-| `--beta` | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1` |
-| `--rc` | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1` |
-| `--pre <id>` | `release` only: tag with a custom prerelease id |
-| `--dry-run` | Print the result without writing or clearing |
-| `--no-clear` | Keep fragment files after generating |
-| `-h, --help` | Show help |
-| `-v, --version` | Show the package version |
+| Option                | Description                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
+| `-d, --dir <path>`    | Directory containing fragments (default: `changelog.d`)                                          |
+| `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`)                                      |
+| `--input <path>`      | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
+| `-c, --config <path>` | Config file (default: `changelog-d.json`)                                                        |
+| `--alpha`             | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1`                                        |
+| `--beta`              | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1`                                    |
+| `--rc`                | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1`                                    |
+| `--pre <id>`          | `release` only: tag with a custom prerelease id                                                  |
+| `--dry-run`           | Print the result without writing or clearing                                                     |
+| `--no-clear`          | Keep fragment files after generating                                                             |
+| `-h, --help`          | Show help                                                                                        |
+| `-v, --version`       | Show the package version                                                                         |
 
 ## Configuration
 

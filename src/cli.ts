@@ -171,7 +171,6 @@ async function main(): Promise<void> {
     return;
   }
 
-
   const result = await generate({
     dir,
     output,

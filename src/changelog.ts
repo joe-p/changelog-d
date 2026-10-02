@@ -76,7 +76,10 @@ async function listFragments(dir: string): Promise<string[]> {
 async function atomicWrite(file: string, content: string): Promise<void> {
   // Resolve symlinks through the existing destination rather than replacing them.
   const destination = existsSync(file) ? await realpath(file) : path.resolve(file);
-  const temporary = path.join(path.dirname(destination), `.${path.basename(destination)}.${randomUUID()}.tmp`);
+  const temporary = path.join(
+    path.dirname(destination),
+    `.${path.basename(destination)}.${randomUUID()}.tmp`,
+  );
   try {
     const mode = existsSync(destination) ? (await stat(destination)).mode : undefined;
     await writeFile(temporary, content, { flag: "wx", mode });
@@ -102,9 +105,14 @@ export async function readFragments(dir: string): Promise<Fragment[]> {
   );
 }
 
-export function selectBump(sections: Section[], bump: Record<string, BumpLevel>): BumpLevel | undefined {
+export function selectBump(
+  sections: Section[],
+  bump: Record<string, BumpLevel>,
+): BumpLevel | undefined {
   return highestBump(
-    sections.map((section) => bump[section.title]).filter((level): level is BumpLevel => level !== undefined),
+    sections
+      .map((section) => bump[section.title])
+      .filter((level): level is BumpLevel => level !== undefined),
   );
 }
 
@@ -140,8 +148,7 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
   const names = fragments.map((fragment) => fragment.name);
   const toStdout = options.output === "-";
   const input = options.input ?? (toStdout ? "CHANGELOG.md" : options.output);
-  const existing =
-    existsSync(input) ? await readFile(input, "utf8") : "";
+  const existing = existsSync(input) ? await readFile(input, "utf8") : "";
 
   const { blocks, preamble } = parseChangelogDocument(existing, options.types);
   if (blocks.slice(1).some((block) => block.unreleased)) {
@@ -187,7 +194,7 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
       const file = path.join(options.dir, fragment.name);
       // Keep fragments edited since the snapshot; a later generate can consume them.
       try {
-        if (await readFile(file, "utf8") !== fragment.content) continue;
+        if ((await readFile(file, "utf8")) !== fragment.content) continue;
         await rm(file);
         cleared.push(fragment.name);
       } catch (error) {
@@ -267,7 +274,11 @@ async function releaseFinal(
     index += 1;
   }
 
-  const sections = mergeSections(consumed.map((block) => block.sections), options.order, options.types);
+  const sections = mergeSections(
+    consumed.map((block) => block.sections),
+    options.order,
+    options.types,
+  );
   const entry = renderChangelog(sections, base);
   const remainder = blocks
     .slice(index)

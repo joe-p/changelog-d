@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { parseConfig, loadConfig, sectionOrder, sectionBumps, sectionTypes } from "../src/config.ts";
+import {
+  parseConfig,
+  loadConfig,
+  sectionOrder,
+  sectionBumps,
+  sectionTypes,
+} from "../src/config.ts";
 
 test("parseConfig reads sections and normalizes bump levels", () => {
   const config = parseConfig(
@@ -55,16 +61,28 @@ test("parseConfig rejects invalid JSON", () => {
 
 test("parseConfig rejects a missing or empty sections array", () => {
   assert.throws(() => parseConfig("{}", "test"), /"sections" must be a non-empty array/);
-  assert.throws(() => parseConfig('{"sections":[]}', "test"), /"sections" must be a non-empty array/);
+  assert.throws(
+    () => parseConfig('{"sections":[]}', "test"),
+    /"sections" must be a non-empty array/,
+  );
 });
 
 test("parseConfig rejects sections that are not objects", () => {
-  assert.throws(() => parseConfig('{"sections":["Fixes"]}', "test"), /sections\[0\] must be an object/);
+  assert.throws(
+    () => parseConfig('{"sections":["Fixes"]}', "test"),
+    /sections\[0\] must be an object/,
+  );
 });
 
 test("parseConfig rejects missing or empty titles", () => {
-  assert.throws(() => parseConfig('{"sections":[{"bump":"PATCH"}]}', "test"), /\.title must be a non-empty string/);
-  assert.throws(() => parseConfig('{"sections":[{"title":"  "}]}', "test"), /\.title must be a non-empty string/);
+  assert.throws(
+    () => parseConfig('{"sections":[{"bump":"PATCH"}]}', "test"),
+    /\.title must be a non-empty string/,
+  );
+  assert.throws(
+    () => parseConfig('{"sections":[{"title":"  "}]}', "test"),
+    /\.title must be a non-empty string/,
+  );
 });
 
 test("parseConfig rejects duplicate sections", () => {

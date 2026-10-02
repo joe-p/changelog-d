@@ -26,7 +26,14 @@ test("generate reads the version from the changelog and marks it unreleased", as
   await writeFile(output, "# 1.0.0\n\n## Features\n\n- Released 1.0!\n");
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some fix\n");
 
-  const first = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  const first = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ORDER,
+    bump: BUMP,
+  });
   assert.equal(first.version, "1.0.1");
   assert.equal(first.previous, "1.0.0");
   assert.equal(first.level, "PATCH");
@@ -38,7 +45,14 @@ test("generate reads the version from the changelog and marks it unreleased", as
 
   await writeFile(path.join(dir, "feat.md"), "## Features\n\n- A new feature!\n");
 
-  const second = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  const second = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ORDER,
+    bump: BUMP,
+  });
   assert.equal(second.version, "1.1.0");
   assert.equal(second.level, "MINOR");
   assert.equal(
@@ -51,16 +65,27 @@ test("generate keeps 1.0.0 while the initial release is unreleased", async () =>
   const { dir, output } = await makeRoot();
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some fix\n");
 
-  const first = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  const first = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ORDER,
+    bump: BUMP,
+  });
   assert.equal(first.version, "1.0.0");
   assert.equal(first.previous, undefined);
-  assert.equal(
-    await readFile(output, "utf8"),
-    "# 1.0.0 - UNRELEASED\n\n## Fixes\n\n- Some fix\n",
-  );
+  assert.equal(await readFile(output, "utf8"), "# 1.0.0 - UNRELEASED\n\n## Fixes\n\n- Some fix\n");
 
   await writeFile(path.join(dir, "feat.md"), "## Features\n\n- A new feature!\n");
-  const second = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  const second = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ORDER,
+    bump: BUMP,
+  });
   assert.equal(second.version, "1.0.0");
   assert.equal(
     await readFile(output, "utf8"),
@@ -130,7 +155,13 @@ test("release merges raw sections from prereleases", async () => {
     "# 1.0.1 - UNRELEASED\n\n## Details\n\nNew details.\n\n# 1.0.1-alpha.1\n\n## Details\n\nOld details.\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
 
-  const result = await release({ output, dir, dryRun: false, order: [...ORDER, "Details"], types: { Details: "raw" } });
+  const result = await release({
+    output,
+    dir,
+    dryRun: false,
+    order: [...ORDER, "Details"],
+    types: { Details: "raw" },
+  });
 
   assert.deepEqual(result, { version: "1.0.1", written: true });
   assert.equal(
@@ -142,7 +173,14 @@ test("release merges raw sections from prereleases", async () => {
 test("generate does nothing without fragments or an unreleased section", async () => {
   const { dir, output } = await makeRoot();
 
-  const result = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  const result = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ORDER,
+    bump: BUMP,
+  });
 
   assert.equal(result.written, false);
   assert.equal(result.fragments.length, 0);
@@ -154,7 +192,14 @@ test("generate keeps the last released version when no section bumps", async () 
   await writeFile(output, "# 1.2.3\n\n## Features\n\n- old\n");
   await writeFile(path.join(dir, "docs.md"), "## Docs\n\n- docs\n");
 
-  const result = await generate({ dir, output, clear: true, dryRun: false, order: ["Docs"], bump: {} });
+  const result = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ["Docs"],
+    bump: {},
+  });
 
   assert.equal(result.version, "1.2.3");
   assert.equal(result.level, undefined);
@@ -217,7 +262,14 @@ test("prerelease flow: alpha, more work, then final merge", async () => {
   );
 
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some new fix\n");
-  const generated = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  const generated = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ORDER,
+    bump: BUMP,
+  });
   assert.equal(generated.version, "1.0.1");
   assert.equal(generated.previous, "1.0.0");
   assert.equal(
@@ -300,7 +352,11 @@ test("generate preserves a preamble when creating the first version", async () =
   await writeFile(output, "# Changelog\n\nProject notes.\n");
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n- fix\n");
   await generate({ dir, output, clear: true, dryRun: false });
-  assert.ok((await readFile(output, "utf8")).startsWith("# Changelog\n\nProject notes.\n\n# 1.0.0 - UNRELEASED"));
+  assert.ok(
+    (await readFile(output, "utf8")).startsWith(
+      "# Changelog\n\nProject notes.\n\n# 1.0.0 - UNRELEASED",
+    ),
+  );
 });
 
 test("invalid fragments leave the changelog and all fragments untouched", async () => {
@@ -332,7 +388,10 @@ test("invalid version headings and misplaced unreleased sections cannot discard 
     "# 1.2.3\n\n## Fixes\n- old\n\n# 1.2.4 - UNRELEASED\n\n## Fixes\n- pending\n",
   ]) {
     await writeFile(output, original);
-    await assert.rejects(generate({ dir, output, clear: true, dryRun: false }), /Invalid semantic version|only at the top/);
+    await assert.rejects(
+      generate({ dir, output, clear: true, dryRun: false }),
+      /Invalid semantic version|only at the top/,
+    );
     assert.equal(await readFile(output, "utf8"), original);
     assert.deepEqual(await readdir(dir), ["fix.md"]);
   }
@@ -343,7 +402,14 @@ test("stdout generation reads the configured input without writing or clearing",
   const original = "# 2.3.4\n\n## Fixes\n- old\n";
   await writeFile(output, original);
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
-  const result = await generate({ dir, output: "-", input: output, clear: true, dryRun: false, bump: BUMP });
+  const result = await generate({
+    dir,
+    output: "-",
+    input: output,
+    clear: true,
+    dryRun: false,
+    bump: BUMP,
+  });
   assert.equal(result.version, "2.3.5");
   assert.equal(result.written, false);
   assert.deepEqual(result.cleared, []);
@@ -380,10 +446,15 @@ test("failed atomic replacement leaves the original and fragments intact", async
   const original = "# 1.0.0\n\n## Fixes\n- old\n";
   await writeFile(output, original);
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
-  t.mock.method(fs, "rename", async () => { throw new Error("Simulated rename failure"); });
+  t.mock.method(fs, "rename", async () => {
+    throw new Error("Simulated rename failure");
+  });
   syncBuiltinESMExports();
   try {
-    await assert.rejects(generate({ dir, output, clear: true, dryRun: false }), /Simulated rename failure/);
+    await assert.rejects(
+      generate({ dir, output, clear: true, dryRun: false }),
+      /Simulated rename failure/,
+    );
     assert.equal(await readFile(output, "utf8"), original);
     assert.deepEqual(await readdir(dir), ["fix.md"]);
     assert.deepEqual((await readdir(root)).sort(), ["CHANGELOG.md", "changelog.d"]);
@@ -396,7 +467,10 @@ test("failed atomic replacement leaves the original and fragments intact", async
 test("CLI stdout uses the default changelog and previews existing unreleased content", async () => {
   const { root, dir, output } = await makeRoot();
   await writeFile(output, "# 2.3.4\n\n## Fixes\n- old\n");
-  await writeFile(path.join(root, "changelog-d.json"), JSON.stringify({ sections: [{ title: "Fixes", bump: "PATCH" }] }));
+  await writeFile(
+    path.join(root, "changelog-d.json"),
+    JSON.stringify({ sections: [{ title: "Fixes", bump: "PATCH" }] }),
+  );
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
   const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
   const run = promisify(execFile);

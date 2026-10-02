@@ -18,7 +18,10 @@ test("parseFragment splits sections", () => {
 });
 
 test("parseFragment rejects content before the first heading", () => {
-  assert.throws(() => parseFragment("intro\n\n## Fixes\n\n- a\n"), /Line 1: expected a ## section heading/);
+  assert.throws(
+    () => parseFragment("intro\n\n## Fixes\n\n- a\n"),
+    /Line 1: expected a ## section heading/,
+  );
 });
 
 test("merging keeps multiline list items intact and deduplicates whole items", () => {
@@ -27,8 +30,10 @@ test("merging keeps multiline list items intact and deduplicates whole items", (
     { name: "b.md", content: "## Fixes\n- Fix B\n  - Details\n" },
     { name: "c.md", content: "## Fixes\n- Fix A\n  - Details\n\n  More details.\n" },
   ];
-  assert.equal(renderChangelog(mergeFragments(fragments)),
-    "# Unreleased\n\n## Fixes\n\n- Fix A\n  - Details\n\n  More details.\n- Fix B\n  - Details\n");
+  assert.equal(
+    renderChangelog(mergeFragments(fragments)),
+    "# Unreleased\n\n## Fixes\n\n- Fix A\n  - Details\n\n  More details.\n- Fix B\n  - Details\n",
+  );
 });
 
 test("fragment validation reports filenames and rejects empty fragments", () => {
@@ -39,7 +44,10 @@ test("fragment validation reports filenames and rejects empty fragments", () => 
 
 test("list item deduplication preserves fenced examples and blank lines between items", () => {
   const content = "## Fixes\n\n- Example\n  ```md\n- Sample\n- Sample\n  ```\n\n- Another fix\n";
-  const sections = mergeFragments([{ name: "a.md", content }, { name: "b.md", content }]);
+  const sections = mergeFragments([
+    { name: "a.md", content },
+    { name: "b.md", content },
+  ]);
   assert.equal(renderChangelog(sections), `# Unreleased\n\n${content}`);
 });
 
@@ -117,7 +125,8 @@ test("mergeFragments follows the configured section order", () => {
 
 test("mergeFragments throws on a section missing from the configured order", () => {
   assert.throws(
-    () => mergeFragments([{ name: "a.md", content: "## Chores\n\n- chore\n" }], ["Fixes", "Features"]),
+    () =>
+      mergeFragments([{ name: "a.md", content: "## Chores\n\n- chore\n" }], ["Fixes", "Features"]),
     /Unknown changelog section "## Chores"/,
   );
 });
@@ -140,10 +149,7 @@ test("renderChangelog produces the expected markdown", () => {
 test("prependChangelog keeps existing content after the new entry", () => {
   const existing = "# Changelog\n\n## 1.0.0\n\n- old\n";
   const result = prependChangelog(existing, "# Unreleased\n\n## Fixes\n\n- new\n");
-  assert.equal(
-    result,
-    "# Unreleased\n\n## Fixes\n\n- new\n\n# Changelog\n\n## 1.0.0\n\n- old\n",
-  );
+  assert.equal(result, "# Unreleased\n\n## Fixes\n\n- new\n\n# Changelog\n\n## 1.0.0\n\n- old\n");
 });
 
 test("mergeSections groups by title and drops duplicate lines", () => {
@@ -199,10 +205,9 @@ test("parseChangelog preserves raw block text", () => {
 });
 
 test("parseChangelog preserves raw sections when types are given", () => {
-  const blocks = parseChangelog(
-    "# 1.0.0\n\n## Details\n\nIntro.\n\n### Nested\n\n- x\n",
-    { Details: "raw" },
-  );
+  const blocks = parseChangelog("# 1.0.0\n\n## Details\n\nIntro.\n\n### Nested\n\n- x\n", {
+    Details: "raw",
+  });
   assert.deepEqual(blocks[0]?.sections, [
     { title: "Details", type: "raw", lines: [], body: "Intro.\n\n### Nested\n\n- x" },
   ]);

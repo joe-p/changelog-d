@@ -16,12 +16,18 @@ export interface ParsedVersion {
   build?: string;
 }
 
-const VERSION_RE = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+const VERSION_RE =
+  /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 export function parseVersion(version: string): ParsedVersion {
   const match = VERSION_RE.exec(version.trim());
-  if (!match || match.slice(1, 4).some((part) => !Number.isSafeInteger(Number(part))) ||
-      match[4]?.split(".").some((part) => /^\d+$/.test(part) && part.length > 1 && part.startsWith("0"))) {
+  if (
+    !match ||
+    match.slice(1, 4).some((part) => !Number.isSafeInteger(Number(part))) ||
+    match[4]
+      ?.split(".")
+      .some((part) => /^\d+$/.test(part) && part.length > 1 && part.startsWith("0"))
+  ) {
     throw new Error(`Invalid semantic version: "${version}". Expected MAJOR.MINOR.PATCH.`);
   }
 
@@ -71,17 +77,17 @@ function checkedVersion(version: string): string {
 }
 
 export function prereleaseVersion(base: string, channel: string, number: number): string {
-  if (!/^[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*$/.test(channel) || !Number.isSafeInteger(number) || number < 1) {
+  if (
+    !/^[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*$/.test(channel) ||
+    !Number.isSafeInteger(number) ||
+    number < 1
+  ) {
     throw new Error("Invalid prerelease channel or number.");
   }
   return checkedVersion(`${baseVersion(base)}-${channel}.${number}`);
 }
 
-export function nextPrerelease(
-  base: string,
-  channel: string,
-  versions: Iterable<string>,
-): string {
+export function nextPrerelease(base: string, channel: string, versions: Iterable<string>): string {
   const target = baseVersion(base);
   let highest = 0;
 
@@ -100,9 +106,7 @@ export function nextPrerelease(
 export function compareBase(a: string, b: string): number {
   const left = parseVersion(a);
   const right = parseVersion(b);
-  return (
-    left.major - right.major || left.minor - right.minor || left.patch - right.patch
-  );
+  return left.major - right.major || left.minor - right.minor || left.patch - right.patch;
 }
 
 export function highestBase(...versions: string[]): string {

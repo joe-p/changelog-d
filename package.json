@@ -16,7 +16,13 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
+    "check-types": "tsc --noEmit",
+    "check": "pnpm run lint && pnpm run format && pnpm run check-types",
+    "fix": "pnpm run lint:fix && pnpm run format:fix && pnpm run check-types",
     "test": "node --test test/*.test.ts",
     "prepublishOnly": "pnpm build"
   },
@@ -34,7 +40,12 @@
     }
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.3",
-    "typescript": "^7.0.2"
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.71.0"
   }
 }

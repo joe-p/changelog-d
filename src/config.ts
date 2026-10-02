@@ -40,7 +40,9 @@ export function parseConfig(raw: string, source: string): ChangelogConfig {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`${source}: invalid JSON (${error instanceof Error ? error.message : error})`);
+    throw new Error(`${source}: invalid JSON (${error instanceof Error ? error.message : error})`, {
+      cause: error,
+    });
   }
 
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
