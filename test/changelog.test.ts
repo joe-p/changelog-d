@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { generate, release } from "../src/changelog.ts";
+import { generate, init, release } from "../src/changelog.ts";
+import { readConfig, sectionBumps, sectionOrder } from "../src/config.ts";
 
 const ORDER = ["Breaking Changes", "Fixes", "Features"];
 const BUMP = { "Breaking Changes": "MAJOR", Fixes: "PATCH", Features: "MINOR" } as const;
@@ -19,6 +20,21 @@ async function makeRoot(): Promise<{ root: string; dir: string; output: string }
   const output = path.join(root, "CHANGELOG.md");
   await mkdir(dir);
   return { root, dir, output };
+}
+
+async function makeInitRoot(): Promise<{
+  root: string;
+  dir: string;
+  output: string;
+  config: string;
+}> {
+  const root = await mkdtemp(path.join(tmpdir(), "changelog-d-"));
+  return {
+    root,
+    dir: path.join(root, "changelog.d"),
+    output: path.join(root, "CHANGELOG.md"),
+    config: path.join(root, "changelog-d.json"),
+  };
 }
 
 test("generate reads the version from the changelog and marks it unreleased", async () => {
@@ -479,4 +495,153 @@ test("CLI stdout uses the default changelog and previews existing unreleased con
   await generate({ dir, output, clear: true, dryRun: false, bump: BUMP });
   const pending = await run(process.execPath, [cli, "--dry-run"], { cwd: root });
   assert.match(pending.stdout, /^# 2\.3\.5 - UNRELEASED/);
+});
+
+test("init creates an unreleased 1.0.0 changelog, config and fragments directory", async () => {
+  const { dir, output, config } = await makeInitRoot();
+
+  const result = await init({ output, dir, config, dryRun: false });
+
+  assert.equal(result.version, "1.0.0");
+  assert.equal(result.title, "1.0.0 - UNRELEASED");
+  assert.equal(result.written, true);
+  assert.equal(result.config, config);
+  assert.equal(result.configWritten, true);
+  assert.equal(await readFile(output, "utf8"), "# 1.0.0 - UNRELEASED\n");
+  assert.deepEqual(await readdir(dir), []);
+  assert.deepEqual(JSON.parse(await readFile(config, "utf8")), {
+    sections: [
+      { title: "Breaking Changes", bump: "MAJOR" },
+      { title: "Fixes", bump: "PATCH" },
+      { title: "Features", bump: "MINOR" },
+    ],
+  });
+});
+
+test("init can start at 0.1.0 with breaking changes as a MINOR bump", async () => {
+  const { dir, output, config } = await makeInitRoot();
+
+  const result = await init({ output, dir, config, version: "0.1.0", dryRun: false });
+
+  assert.equal(result.version, "0.1.0");
+  assert.equal(await readFile(output, "utf8"), "# 0.1.0 - UNRELEASED\n");
+  assert.deepEqual(JSON.parse(await readFile(config, "utf8")), {
+    sections: [
+      { title: "Breaking Changes", bump: "MINOR" },
+      { title: "Fixes", bump: "PATCH" },
+      { title: "Features", bump: "MINOR" },
+    ],
+  });
+});
+
+test("init leaves an existing config untouched", async () => {
+  const { dir, output, config } = await makeInitRoot();
+  const existing = '{ "sections": [{ "title": "Fixes", "bump": "PATCH" }] }\n';
+  await writeFile(config, existing);
+
+  const result = await init({ output, dir, config, dryRun: false });
+
+  assert.equal(result.configWritten, false);
+  assert.equal(await readFile(config, "utf8"), existing);
+});
+
+test("init refuses to overwrite an existing changelog", async () => {
+  const { dir, output, config } = await makeInitRoot();
+  const original = "# 1.0.0\n\n## Features\n\n- Released\n";
+  await writeFile(output, original);
+
+  await assert.rejects(init({ output, dir, config, dryRun: false }), /already exists/);
+  assert.equal(await readFile(output, "utf8"), original);
+  assert.equal(existsSync(config), false);
+});
+
+test("init rejects prerelease, build and invalid initial versions", async () => {
+  const { dir, output, config } = await makeInitRoot();
+
+  for (const version of ["1.0.0-alpha.1", "1.0.0+build", "nope"]) {
+    await assert.rejects(
+      init({ output, dir, config, version, dryRun: false }),
+      /Invalid initial version|Invalid semantic version/,
+    );
+  }
+  assert.equal(existsSync(output), false);
+  assert.equal(existsSync(config), false);
+});
+
+test("init dry run reports without writing or creating the directory", async () => {
+  const { dir, output, config } = await makeInitRoot();
+
+  const result = await init({ output, dir, config, version: "0.1.0", dryRun: true });
+
+  assert.equal(result.written, false);
+  assert.equal(result.configWritten, true);
+  assert.equal(existsSync(output), false);
+  assert.equal(existsSync(dir), false);
+  assert.equal(existsSync(config), false);
+});
+
+test("generate keeps 0.1.0 while the initial release is unreleased", async () => {
+  const { dir, output, config } = await makeInitRoot();
+  await init({ output, dir, config, version: "0.1.0", dryRun: false });
+  await writeFile(path.join(dir, "breaking.md"), "## Breaking Changes\n\n- Overhaul\n");
+
+  const result = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: ORDER,
+    bump: BUMP,
+  });
+
+  assert.equal(result.version, "0.1.0");
+  assert.equal(result.previous, undefined);
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 0.1.0 - UNRELEASED\n\n## Breaking Changes\n\n- Overhaul\n",
+  );
+});
+
+test("init 0.1.0 config makes breaking changes bump the minor version", async () => {
+  const { dir, output, config } = await makeInitRoot();
+  await init({ output, dir, config, version: "0.1.0", dryRun: false });
+  const loaded = await readConfig(config);
+
+  await writeFile(path.join(dir, "breaking.md"), "## Breaking Changes\n\n- Overhaul\n");
+  await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: sectionOrder(loaded),
+    bump: sectionBumps(loaded),
+  });
+
+  const released = await release({ output, dir, dryRun: false, order: sectionOrder(loaded) });
+  assert.deepEqual(released, { version: "0.1.0", written: true });
+
+  await writeFile(path.join(dir, "breaking.md"), "## Breaking Changes\n\n- Another overhaul\n");
+  const next = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: sectionOrder(loaded),
+    bump: sectionBumps(loaded),
+  });
+  assert.equal(next.version, "0.2.0");
+  assert.equal(next.previous, "0.1.0");
+});
+
+test("CLI init writes the requested initial version and default config", async () => {
+  const { root, dir, output, config } = await makeInitRoot();
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+  const run = promisify(execFile);
+
+  const result = await run(process.execPath, [cli, "init", "--initial", "0.1.0"], { cwd: root });
+
+  assert.match(result.stdout, /Initialized .*0\.1\.0 - UNRELEASED and wrote .*changelog-d\.json/);
+  assert.equal(await readFile(output, "utf8"), "# 0.1.0 - UNRELEASED\n");
+  assert.deepEqual(await readdir(dir), []);
+  assert.equal(JSON.parse(await readFile(config, "utf8")).sections[0].bump, "MINOR");
 });

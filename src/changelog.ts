@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, rm, rename, stat, realpath } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, rm, rename, stat, realpath } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -25,6 +25,7 @@ import {
   prereleaseOf,
   type BumpLevel,
 } from "./bump.ts";
+import { DEFAULT_CONFIG_FILE, defaultConfig, serializeConfig } from "./config.ts";
 
 export interface GenerateOptions {
   dir: string;
@@ -62,6 +63,26 @@ export interface ReleaseResult {
   prerelease?: string;
   written: boolean;
 }
+
+export interface InitOptions {
+  output: string;
+  dir: string;
+  version?: string;
+  config?: string;
+  dryRun: boolean;
+}
+
+export interface InitResult {
+  version: string;
+  title: string;
+  output: string;
+  dir: string;
+  config: string;
+  configWritten: boolean;
+  written: boolean;
+}
+
+export const DEFAULT_INITIAL_VERSION = "1.0.0";
 
 async function listFragments(dir: string): Promise<string[]> {
   if (!existsSync(dir)) return [];
@@ -105,6 +126,43 @@ export async function readFragments(dir: string): Promise<Fragment[]> {
   );
 }
 
+export async function init(options: InitOptions): Promise<InitResult> {
+  const requested = options.version ?? DEFAULT_INITIAL_VERSION;
+  const parsed = parseVersion(requested);
+  if (parsed.prerelease !== undefined || parsed.build !== undefined) {
+    throw new Error(
+      `Invalid initial version: "${requested}". Expected a plain MAJOR.MINOR.PATCH version.`,
+    );
+  }
+  if (existsSync(options.output)) {
+    throw new Error(`${options.output} already exists. Remove it first or choose another output.`);
+  }
+
+  const version = baseVersion(requested);
+  const title = `${version} - ${UNRELEASED_MARKER}`;
+  const entry = renderChangelog([], title);
+  const configPath = options.config ?? DEFAULT_CONFIG_FILE;
+  const configWritten = !existsSync(configPath);
+
+  if (!options.dryRun) {
+    await mkdir(options.dir, { recursive: true });
+    await atomicWrite(options.output, entry);
+    if (configWritten) {
+      await atomicWrite(configPath, serializeConfig(defaultConfig(version)));
+    }
+  }
+
+  return {
+    version,
+    title,
+    output: options.output,
+    dir: options.dir,
+    config: configPath,
+    configWritten,
+    written: !options.dryRun,
+  };
+}
+
 export function selectBump(
   sections: Section[],
   bump: Record<string, BumpLevel>,
@@ -130,9 +188,10 @@ function resolveNextVersion(
     .map((block) => baseVersion(block.version));
 
   if (lastReleased === undefined) {
-    const base = blocks.find((block) => block.unreleased)?.version ?? "1.0.0";
-    const version = base === "1.0.0" ? "1.0.0" : nextVersion(base, level);
-    return { version: highestBase(version, ...prereleaseBases), level, previous: undefined };
+    // Until the initial version is released it is fixed, so a v0.y.z or 1.0.0
+    // first release is never bumped past what was initialized.
+    const base = blocks.find((block) => block.unreleased)?.version ?? DEFAULT_INITIAL_VERSION;
+    return { version: highestBase(base, ...prereleaseBases), level, previous: undefined };
   }
 
   const bumped = nextVersion(lastReleased, level);

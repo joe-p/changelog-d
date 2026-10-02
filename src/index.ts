@@ -16,17 +16,23 @@ export {
   type VersionBlock,
 } from "./generate.ts";
 export {
+  DEFAULT_INITIAL_VERSION,
   generate,
+  init,
   release,
   readFragments,
   selectBump,
   type GenerateOptions,
   type GenerateResult,
+  type InitOptions,
+  type InitResult,
   type ReleaseOptions,
   type ReleaseResult,
 } from "./changelog.ts";
 export {
   DEFAULT_CONFIG_FILE,
+  defaultConfig,
+  serializeConfig,
   parseConfig,
   readConfig,
   loadConfig,

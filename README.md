@@ -36,12 +36,48 @@ section headings:
 ```
 
 ```sh
+changelog-d init [options]
 changelog-d generate [options]
 changelog-d release [options]
 ```
 
 `generate` is the default command, so `changelog-d` on its own is equivalent to
 `changelog-d generate`.
+
+### Initialize a changelog
+
+```sh
+changelog-d init
+```
+
+creates `CHANGELOG.md` containing `# 1.0.0 - UNRELEASED`, the `changelog.d`
+directory, and a `changelog-d.json` with the default sections. Pass
+`--initial 0.1.0` to start from a pre-1.0 version instead:
+
+```sh
+changelog-d init --initial 0.1.0
+```
+
+```md
+# 0.1.0 - UNRELEASED
+```
+
+A `0.y.z` start writes the config with `Breaking Changes` set to `MINOR`, since a
+pre-1.0 release may make breaking changes in a minor bump:
+
+```json
+{
+  "sections": [
+    { "title": "Breaking Changes", "bump": "MINOR" },
+    { "title": "Fixes", "bump": "PATCH" },
+    { "title": "Features", "bump": "MINOR" }
+  ]
+}
+```
+
+`init` fails if the changelog already exists, leaves an existing config file
+untouched, and requires `--initial` to be a plain `MAJOR.MINOR.PATCH` version (no
+prerelease or build metadata).
 
 ### Generate an unreleased section
 
@@ -215,10 +251,11 @@ to a final release.
 ### The initial release
 
 When there is no released version yet, the first `generate` creates
-`# 1.0.0 - UNRELEASED`. While `1.0.0` is still unreleased, the version stays
-`1.0.0` regardless of the bump levels of the pending sections, so your first
-release is always `1.0.0`. Once `release` has been run, later changes bump
-normally from `1.0.0`.
+`# 1.0.0 - UNRELEASED`, or `# 0.1.0 - UNRELEASED` if you initialized with
+`--initial 0.1.0`. While the initial version is still unreleased it stays fixed
+regardless of the bump levels of the pending sections, so your first release is
+exactly the version you started with. Once `release` has been run, later changes
+bump normally from that version.
 
 ### Preview without writing
 
@@ -240,7 +277,8 @@ to read a different changelog. Stdout generation never clears fragments.
 | `-d, --dir <path>`    | Directory containing fragments (default: `changelog.d`)                                          |
 | `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`)                                      |
 | `--input <path>`      | `generate` only: existing changelog to read (default: output path, or `CHANGELOG.md` for stdout) |
-| `-c, --config <path>` | Config file (default: `changelog-d.json`)                                                        |
+| `-c, --config <path>` | Config file to read or, for `init`, write (default: `changelog-d.json`)                          |
+| `--initial <version>` | `init` only: starting version, e.g. `0.1.0` or `1.0.0` (default: `1.0.0`)                        |
 | `--alpha`             | `release` only: tag as a prerelease, e.g. `1.0.1-alpha.1`                                        |
 | `--beta`              | `release` only: tag as a beta prerelease, e.g. `1.0.1-beta.1`                                    |
 | `--rc`                | `release` only: tag as a release candidate, e.g. `1.0.1-rc.1`                                    |
@@ -310,7 +348,15 @@ Replace `oldThing()` with `newThing()`.
 ## Programmatic API
 
 ```ts
-import { generate, release, parseChangelog } from "changelog-d";
+import { generate, init, release, parseChangelog } from "changelog-d";
+
+await init({
+  output: "CHANGELOG.md",
+  dir: "changelog.d",
+  config: "changelog-d.json",
+  version: "0.1.0",
+  dryRun: false,
+});
 
 await generate({
   dir: "changelog.d",

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { readFileSync } from "node:fs";
-import { generate, release } from "./changelog.ts";
+import { DEFAULT_INITIAL_VERSION, generate, init, release } from "./changelog.ts";
 import {
   DEFAULT_CONFIG_FILE,
   loadConfig,
@@ -24,6 +24,7 @@ const HELP = `changelog-d - merge changelog.d fragments into a changelog
 Usage:
   changelog-d [generate] [options]
   changelog-d release [options]
+  changelog-d init [options]
 
 Commands:
   generate              Merge pending fragments into an unreleased section and
@@ -32,12 +33,17 @@ Commands:
                         prerelease flag, merges same-version prereleases into a
                         release. With --alpha/--beta/--rc/--pre, tags the section
                         as a prerelease instead. Fails if fragments are pending.
+  init                  Create an empty changelog with an unreleased heading, the
+                        fragments directory and a config file. Fails if the
+                        changelog exists. A 0.y.z start makes "Breaking Changes"
+                        bump MINOR.
 
 Options:
   -d, --dir <path>      Directory containing changelog fragments (default: changelog.d)
   -o, --output <path>   Changelog file, or "-" for stdout (default: CHANGELOG.md)
       --input <path>    Existing changelog to read (default: output, or CHANGELOG.md for stdout)
-  -c, --config <path>   Config file defining section order and bump levels (default: ${DEFAULT_CONFIG_FILE})
+  -c, --config <path>   Config file to read or, for init, write (default: ${DEFAULT_CONFIG_FILE})
+      --initial <ver>   init only: starting version, e.g. 0.1.0 or 1.0.0 (default: ${DEFAULT_INITIAL_VERSION})
       --alpha           Tag the release as a prerelease, e.g. 1.0.1-alpha.1
       --beta            Tag the release as a beta prerelease, e.g. 1.0.1-beta.1
       --rc              Tag the release as a release candidate, e.g. 1.0.1-rc.1
@@ -95,6 +101,7 @@ async function main(): Promise<void> {
         output: { type: "string", short: "o" },
         input: { type: "string" },
         config: { type: "string", short: "c" },
+        initial: { type: "string" },
         "dry-run": { type: "boolean" },
         "no-clear": { type: "boolean" },
         alpha: { type: "boolean" },
@@ -122,7 +129,7 @@ async function main(): Promise<void> {
   }
 
   const command = positionals[0] ?? "generate";
-  if (command !== "generate" && command !== "release") {
+  if (command !== "generate" && command !== "release" && command !== "init") {
     fail(`unknown command: ${command}`);
   }
   if (positionals.length > 1) {
@@ -149,6 +156,36 @@ async function main(): Promise<void> {
   }
   if (command === "release" && values.input !== undefined) {
     fail("--input can only be used with generate");
+  }
+  if (command !== "init" && values.initial !== undefined) {
+    fail("--initial can only be used with init");
+  }
+  if (command === "init" && values.input !== undefined) {
+    fail("--input can only be used with generate");
+  }
+
+  if (command === "init") {
+    if (output === "-") {
+      fail("init cannot write to stdout");
+    }
+    const result = await init({
+      output,
+      dir,
+      version: values.initial,
+      config: values.config,
+      dryRun,
+    });
+    const configNote = result.configWritten
+      ? dryRun
+        ? ` and write ${result.config}`
+        : ` and wrote ${result.config}`
+      : "";
+    if (dryRun) {
+      process.stdout.write(`Would initialize ${output} at ${result.title}${configNote}.\n`);
+      return;
+    }
+    process.stdout.write(`Initialized ${output} at ${result.title}${configNote}.\n`);
+    return;
   }
 
   const config = await loadConfig(values.config);

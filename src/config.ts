@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { isBumpLevel, type BumpLevel } from "./bump.ts";
+import { isBumpLevel, parseVersion, type BumpLevel } from "./bump.ts";
 import { isSectionType, type SectionType, type SectionTypes } from "./generate.ts";
 
 export const DEFAULT_CONFIG_FILE = "changelog-d.json";
@@ -13,6 +13,22 @@ export interface SectionConfig {
 
 export interface ChangelogConfig {
   sections: SectionConfig[];
+}
+
+export function defaultConfig(initialVersion: string): ChangelogConfig {
+  const { major } = parseVersion(initialVersion);
+  // A 0.y.z release may make breaking changes in a minor bump.
+  return {
+    sections: [
+      { title: "Breaking Changes", bump: major === 0 ? "MINOR" : "MAJOR" },
+      { title: "Fixes", bump: "PATCH" },
+      { title: "Features", bump: "MINOR" },
+    ],
+  };
+}
+
+export function serializeConfig(config: ChangelogConfig): string {
+  return `${JSON.stringify(config, null, 2)}\n`;
 }
 
 export function sectionOrder(config: ChangelogConfig): string[] {
