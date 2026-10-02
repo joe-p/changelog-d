@@ -58,6 +58,12 @@ jobs:
           version="$(node dist/cli.js latest)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Bump package.json version
+        if: steps.release.outputs.version != ''
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
       - name: Commit and tag
         if: steps.release.outputs.version != ''
         env:
