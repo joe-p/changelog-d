@@ -39,6 +39,7 @@ section headings:
 changelog-d init [options]
 changelog-d generate [options]
 changelog-d release [options]
+changelog-d latest [options]
 ```
 
 `generate` is the default command, so `changelog-d` on its own is equivalent to
@@ -179,6 +180,24 @@ changelog-d release
 
 `release` fails if the top section is not unreleased, or if `changelog.d` still
 contains pending fragments (run `generate` first).
+
+### Latest released version
+
+```sh
+changelog-d latest
+```
+
+prints the most recent released version from the changelog (default
+`CHANGELOG.md`), skipping the top section while it is still ` - UNRELEASED`:
+
+```sh
+$ changelog-d latest
+1.1.0
+```
+
+This is useful in scripts that need the released version, for example to tag a
+release. Prereleases count as released, so a top `1.0.1-alpha.1` prints
+`1.0.1-alpha.1`. The command fails if the changelog has no released version yet.
 
 ### Pre-releases
 
@@ -348,7 +367,7 @@ Replace `oldThing()` with `newThing()`.
 ## Programmatic API
 
 ```ts
-import { generate, init, release, parseChangelog } from "changelog-d";
+import { generate, init, latest, release, parseChangelog } from "changelog-d";
 
 await init({
   output: "CHANGELOG.md",
@@ -370,6 +389,8 @@ await generate({
 
 await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false });
 await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false, prerelease: "alpha" });
+
+const { version } = await latest({ output: "CHANGELOG.md" });
 
 const blocks = parseChangelog("# 1.0.0\n\n## Features\n\n- hello\n", { Features: "list" });
 ```
