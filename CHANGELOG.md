@@ -1,3 +1,9 @@
+# 0.3.0
+
+## Features
+
+- Add `changelog-d notes` to print the changelog body of the latest release, and use it to generate GitHub release notes.
+
 # 0.2.0
 
 ## Features
