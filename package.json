@@ -31,7 +31,7 @@
     "changelog.d",
     "release"
   ],
-  "license": "ISC",
+  "license": "MIT",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",

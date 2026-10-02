@@ -447,4 +447,4 @@ const blocks = parseChangelog("# 1.0.0\n\n## Features\n\n- hello\n", { Features:
 
 ## License
 
-ISC
+MIT
