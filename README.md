@@ -1,7 +1,13 @@
 # changelog-d
 
 Merge `changelog.d` fragments into a changelog, with automatic semantic
-versioning.
+versioning. Think of it as a combination of [scriv](https://github.com/nedbat/scriv)
+and [semantic-release](https://github.com/semantic-release/semantic-release): the
+fragment workflow of the former with the automatic versioning of the latter.
+
+It is intentionally agnostic: it does not care about your VCS, your programming
+language, or your commit convention. Anything that can write a markdown file can
+use it.
 
 Drop small markdown files into a `changelog.d` directory as you work, then run
 `changelog-d generate` to merge them into a single unreleased section that is
