@@ -1,21 +1,25 @@
 export {
   parseFragment,
   mergeFragments,
+  mergeSections,
   orderSections,
+  parseChangelog,
   renderChangelog,
   prependChangelog,
+  UNRELEASED_MARKER,
   type Section,
   type Fragment,
+  type VersionBlock,
 } from "./generate.ts";
 export {
   generate,
+  release,
   readFragments,
   selectBump,
-  bumpVersion,
   type GenerateOptions,
   type GenerateResult,
-  type BumpOptions,
-  type BumpResult,
+  type ReleaseOptions,
+  type ReleaseResult,
 } from "./changelog.ts";
 export {
   DEFAULT_CONFIG_FILE,
@@ -33,6 +37,7 @@ export {
   parseVersion,
   applyBump,
   highestBump,
+  nextVersion,
   type BumpLevel,
   type ParsedVersion,
 } from "./bump.ts";

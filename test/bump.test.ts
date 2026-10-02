@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyBump, highestBump, isBumpLevel, parseVersion } from "../src/bump.ts";
+import { applyBump, highestBump, isBumpLevel, nextVersion, parseVersion } from "../src/bump.ts";
 
 test("parseVersion accepts plain, v-prefixed and prerelease versions", () => {
   assert.deepEqual(parseVersion("1.2.3"), { major: 1, minor: 2, patch: 3 });
@@ -35,4 +35,9 @@ test("highestBump picks the most significant level", () => {
   assert.equal(highestBump(["PATCH", "MINOR", "PATCH"]), "MINOR");
   assert.equal(highestBump(["PATCH", "MAJOR", "MINOR"]), "MAJOR");
   assert.equal(highestBump([]), undefined);
+});
+
+test("nextVersion applies a level or keeps the base", () => {
+  assert.equal(nextVersion("1.2.3", "MINOR"), "1.3.0");
+  assert.equal(nextVersion("1.2.3", undefined), "1.2.3");
 });

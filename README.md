@@ -1,10 +1,17 @@
 # changelog-d
 
-Merge `changelog.d` fragments into a changelog section.
+Merge `changelog.d` fragments into a changelog, with automatic semantic
+versioning.
 
 Drop small markdown files into a `changelog.d` directory as you work, then run
-`changelog-d` to merge them into a single, ordered section that is prepended to
-your changelog. Fragments are cleared afterwards so the next release starts clean.
+`changelog-d generate` to merge them into a single unreleased section that is
+prepended to `CHANGELOG.md`. Fragments are cleared afterwards so the next release
+starts clean. Run `changelog-d release` when you are ready to cut the release.
+
+Versions are read from the changelog itself: there is no version to pass by hand.
+The next version is the highest bump level among the pending sections applied to
+the last released version. Until it is released, a section is titled
+`X.Y.Z - UNRELEASED`.
 
 ## Install
 
@@ -24,77 +31,144 @@ section headings:
 ```
 
 ```sh
-changelog-d [version] [options]
+changelog-d generate [options]
+changelog-d release [options]
 ```
 
-### Generate an Unreleased section
+`generate` is the default command, so `changelog-d` on its own is equivalent to
+`changelog-d generate`.
 
-```sh
-changelog-d
-```
+### Generate an unreleased section
 
-Reads every `*.md` file in `changelog.d`, merges the sections, and prepends the
-result to `CHANGELOG.md`:
+Given a changelog whose latest release is `1.0.0`:
 
 ```md
-# Unreleased
-
-## Fixes
-
-- Fix a crash when the config file is missing
+# 1.0.0
 
 ## Features
 
-- Add a `--config` flag
+- Released 1.0!
 ```
 
-### Generate a released section
-
-Pass the previous released version as a positional argument (or with
-`--current`). The section is then titled with the next version implied by the
-pending fragments instead of `Unreleased`:
-
-```sh
-changelog-d 1.2.3
-```
+and a fragment `changelog.d/fix.md`:
 
 ```md
-# 1.3.0
+## Fixes
+
+- Some fix
+```
+
+running:
+
+```sh
+changelog-d generate
+```
+
+prepends a new unreleased section and clears the fragment:
+
+```md
+# 1.0.1 - UNRELEASED
 
 ## Fixes
 
-- Fix a crash when the config file is missing
+- Some fix
+
+# 1.0.0
+
+## Features
+
+- Released 1.0!
 ```
 
-The next version is computed from the highest bump level among the pending
-sections (see [Configuration](#configuration)). If no pending section has a bump
-level, the current version is used unchanged.
+Add another fragment `changelog.d/feat.md`:
+
+```md
+## Features
+
+- A new feature!
+```
+
+and run `changelog-d generate` again. The existing unreleased section is merged
+with the new fragment and the version is recomputed from the last released
+version (`1.0.0`), so the minor bump wins:
+
+```md
+# 1.1.0 - UNRELEASED
+
+## Fixes
+
+- Some fix
+
+## Features
+
+- A new feature!
+
+# 1.0.0
+
+## Features
+
+- Released 1.0!
+```
+
+### Release
+
+When you are ready to ship, remove the ` - UNRELEASED` suffix:
+
+```sh
+changelog-d release
+```
+
+```md
+# 1.1.0
+
+## Fixes
+
+- Some fix
+
+## Features
+
+- A new feature!
+
+# 1.0.0
+
+## Features
+
+- Released 1.0!
+```
+
+`release` fails if the top section is not unreleased, or if `changelog.d` still
+contains pending fragments (run `generate` first).
+
+### The initial release
+
+When there is no released version yet, the first `generate` creates
+`# 1.0.0 - UNRELEASED`. While `1.0.0` is still unreleased, the version stays
+`1.0.0` regardless of the bump levels of the pending sections, so your first
+release is always `1.0.0`. Once `release` has been run, later changes bump
+normally from `1.0.0`.
 
 ### Preview without writing
 
 ```sh
-changelog-d 1.2.3 --dry-run
+changelog-d generate --dry-run
+changelog-d release --dry-run
 ```
 
-Prints the generated section to stdout without writing to the changelog or
-clearing fragments. Use `--no-clear` to write the changelog but keep the
-fragments, or `-o -` to write the section to stdout.
+`--dry-run` prints what would happen without writing to the changelog or clearing
+fragments. Use `--no-clear` to write the changelog but keep the fragments, or
+`-o -` to write the generated section to stdout.
 
 ### Options
 
 | Option | Description |
 | --- | --- |
 | `-d, --dir <path>` | Directory containing fragments (default: `changelog.d`) |
-| `-o, --output <path>` | File to prepend to, or `-` for stdout (default: `CHANGELOG.md`) |
-| `-t, --title <title>` | Heading when no version is given (default: `Unreleased`) |
+| `-o, --output <path>` | Changelog file, or `-` for stdout (default: `CHANGELOG.md`) |
 | `-c, --config <path>` | Config file (default: `changelog-d.json`) |
-| `--current <ver>` | Previous version, as an alternative to the positional argument |
-| `--dry-run` | Print the section without writing or clearing |
+| `--dry-run` | Print the result without writing or clearing |
 | `--no-clear` | Keep fragment files after generating |
 | `-h, --help` | Show help |
 | `-v, --version` | Show the package version |
-
-`--title` and a version are mutually exclusive.
 
 ## Configuration
 
@@ -116,24 +190,27 @@ each section implies:
 - `bump` is optional and must be `MAJOR`, `MINOR`, or `PATCH` (case-insensitive).
 - A fragment section that is not listed causes an error.
 
-When a version is passed, the highest bump level among the pending sections is
-applied to it. For example, `Breaking Changes` and `Features` fragments passed
-with `1.2.3` produce `2.0.0`.
+The highest bump level among the pending sections is applied to the last released
+version. For example, `Breaking Changes` and `Features` fragments on top of
+`1.2.3` produce `2.0.0`.
 
 ## Programmatic API
 
 ```ts
-import { generate } from "changelog-d";
+import { generate, release, parseChangelog } from "changelog-d";
 
 await generate({
   dir: "changelog.d",
   output: "CHANGELOG.md",
-  current: "1.2.3",
   clear: true,
   dryRun: false,
   order: ["Breaking Changes", "Fixes", "Features"],
   bump: { "Breaking Changes": "MAJOR", Fixes: "PATCH", Features: "MINOR" },
 });
+
+await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false });
+
+const blocks = parseChangelog("# 1.0.0\n\n## Features\n\n- hello\n");
 ```
 
 ## License

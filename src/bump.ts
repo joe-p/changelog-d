@@ -54,3 +54,7 @@ export function highestBump(levels: Iterable<BumpLevel>): BumpLevel | undefined 
   }
   return highest;
 }
+
+export function nextVersion(base: string, level: BumpLevel | undefined): string {
+  return level ? applyBump(base, level) : base;
+}

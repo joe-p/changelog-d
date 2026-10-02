@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { readFileSync } from "node:fs";
-import { generate } from "./changelog.ts";
+import { generate, release } from "./changelog.ts";
 import {
   DEFAULT_CONFIG_FILE,
   loadConfig,
@@ -18,26 +18,31 @@ function readVersion(): string {
   }
 }
 
-const HELP = `changelog-d - merge changelog.d fragments into a changelog section
+const HELP = `changelog-d - merge changelog.d fragments into a changelog
 
 Usage:
-  changelog-d [version] [options]
+  changelog-d [generate] [options]
+  changelog-d release [options]
 
-Arguments:
-  version               Previous released version. When given, the section is titled
-                        with the next version implied by the pending fragments
-                        instead of "Unreleased".
+Commands:
+  generate              Merge pending fragments into an unreleased section and
+                        prepend it to the changelog. This is the default command.
+  release               Mark the top unreleased section as released by removing
+                        the " - UNRELEASED" suffix. Fails if fragments are pending.
 
 Options:
   -d, --dir <path>      Directory containing changelog fragments (default: changelog.d)
-  -o, --output <path>   File to prepend the section to, or "-" for stdout (default: CHANGELOG.md)
-  -t, --title <title>   Heading for the generated section when no version is given (default: Unreleased)
+  -o, --output <path>   Changelog file, or "-" for stdout (default: CHANGELOG.md)
   -c, --config <path>   Config file defining section order and bump levels (default: ${DEFAULT_CONFIG_FILE})
-      --current <ver>   Previous version (alternative to the positional argument)
-      --dry-run         Print the generated section without writing or clearing
+      --dry-run         Print the result without writing or clearing
       --no-clear        Keep the fragment files after generating
   -h, --help            Show this help
   -v, --version         Show the version
+
+Versions are read from the changelog itself. The next version is the highest
+bump level among the pending sections applied to the last released version. While
+the top section is "1.0.0 - UNRELEASED" and 1.0.0 has not been released, the
+version stays 1.0.0 regardless of bump level.
 
 Config file:
   A JSON object with a "sections" array listing the allowed sections in the order
@@ -52,9 +57,7 @@ Config file:
       ]
     }
 
-  Sections found in fragments that are not listed cause an error. When a version is
-  given, the highest bump level among the pending sections is applied to it to title
-  the generated section.
+  Sections found in fragments that are not listed cause an error.
 `;
 
 function fail(message: string): never {
@@ -69,9 +72,7 @@ async function main(): Promise<void> {
       options: {
         dir: { type: "string", short: "d" },
         output: { type: "string", short: "o" },
-        title: { type: "string", short: "t" },
         config: { type: "string", short: "c" },
-        current: { type: "string" },
         "dry-run": { type: "boolean" },
         "no-clear": { type: "boolean" },
         help: { type: "boolean", short: "h" },
@@ -94,24 +95,35 @@ async function main(): Promise<void> {
     return;
   }
 
+  const command = positionals[0] ?? "generate";
+  if (command !== "generate" && command !== "release") {
+    fail(`unknown command: ${command}`);
+  }
   if (positionals.length > 1) {
     fail(`unexpected argument: ${positionals[1]}`);
   }
 
-  const current = positionals[0] ?? values.current;
-  if (current !== undefined && values.title !== undefined) {
-    fail("cannot combine --title with a version");
+  const dir = values.dir ?? "changelog.d";
+  const output = values.output ?? "CHANGELOG.md";
+  const dryRun = values["dry-run"] ?? false;
+
+  if (command === "release") {
+    const result = await release({ output, dir, dryRun });
+    if (dryRun) {
+      process.stdout.write(`Would release ${result.version} in ${output}.\n`);
+      return;
+    }
+    process.stdout.write(`Released ${result.version} in ${output}.\n`);
+    return;
   }
 
   const config = await loadConfig(values.config);
 
   const result = await generate({
-    dir: values.dir ?? "changelog.d",
-    output: values.output ?? "CHANGELOG.md",
-    title: values.title,
-    current,
+    dir,
+    output,
     clear: !values["no-clear"],
-    dryRun: values["dry-run"] ?? false,
+    dryRun,
     order: config ? sectionOrder(config) : undefined,
     bump: config ? sectionBumps(config) : undefined,
   });
@@ -121,21 +133,17 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (current !== undefined) {
-    if (result.level) {
-      process.stderr.write(`changelog-d: applying ${result.level} bump\n`);
-    } else {
-      process.stderr.write("changelog-d: no bump-level sections found; version unchanged\n");
-    }
-  }
-
-  if (values["dry-run"] || values.output === "-") {
+  if (dryRun || values.output === "-") {
     process.stdout.write(result.entry);
     return;
   }
 
+  const from = result.previous ?? "initial";
+  const bump = result.level && result.previous ? ` (${result.level})` : "";
+  process.stderr.write(`changelog-d: ${from} -> ${result.version}${bump}\n`);
+
   process.stdout.write(
-    `Generated ${values.output ?? "CHANGELOG.md"} from ${result.fragments.length} fragment(s)` +
+    `Generated ${output} from ${result.fragments.length} fragment(s)` +
       (result.cleared.length > 0 ? ` and cleared ${result.cleared.length} file(s).\n` : ".\n"),
   );
 }

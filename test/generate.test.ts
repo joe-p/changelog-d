@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseFragment, mergeFragments, renderChangelog, prependChangelog } from "../src/generate.ts";
+import {
+  parseFragment,
+  mergeFragments,
+  mergeSections,
+  parseChangelog,
+  renderChangelog,
+  prependChangelog,
+} from "../src/generate.ts";
 
 test("parseFragment splits sections", () => {
   const sections = parseFragment("## Fixes\n\n- a\n- b\n\n## Features\n\n- c\n");
@@ -79,4 +86,39 @@ test("prependChangelog keeps existing content after the new entry", () => {
     result,
     "# Unreleased\n\n## Fixes\n\n- new\n\n# Changelog\n\n## 1.0.0\n\n- old\n",
   );
+});
+
+test("mergeSections groups by title and drops duplicate lines", () => {
+  const merged = mergeSections([
+    [{ title: "Fixes", lines: ["- fix #01"] }],
+    [{ title: "Fixes", lines: ["- fix #01", "- fix #02"] }],
+  ]);
+  assert.deepEqual(merged, [{ title: "Fixes", lines: ["- fix #01", "- fix #02"] }]);
+});
+
+test("parseChangelog splits released and unreleased blocks", () => {
+  const blocks = parseChangelog(
+    "# 1.1.0 - UNRELEASED\n\n## Fixes\n\n- new\n\n# 1.0.0\n\n## Features\n\n- old\n",
+  );
+
+  assert.deepEqual(blocks, [
+    {
+      version: "1.1.0",
+      unreleased: true,
+      sections: [{ title: "Fixes", lines: ["- new"] }],
+      raw: "# 1.1.0 - UNRELEASED\n\n## Fixes\n\n- new",
+    },
+    {
+      version: "1.0.0",
+      unreleased: false,
+      sections: [{ title: "Features", lines: ["- old"] }],
+      raw: "# 1.0.0\n\n## Features\n\n- old",
+    },
+  ]);
+});
+
+test("parseChangelog preserves raw block text", () => {
+  const markdown = "# 1.0.0\n\n## Features\n\n- old\n\n# 0.9.0\n\n## Fixes\n\n- older\n";
+  const [first] = parseChangelog(markdown);
+  assert.equal(first?.raw, "# 1.0.0\n\n## Features\n\n- old");
 });

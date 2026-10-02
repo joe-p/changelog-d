@@ -4,163 +4,136 @@ import { mkdtemp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { bumpVersion, generate } from "../src/changelog.ts";
+import { generate, release } from "../src/changelog.ts";
 
-async function makeFixture(): Promise<string> {
+const ORDER = ["Breaking Changes", "Fixes", "Features"];
+const BUMP = { "Breaking Changes": "MAJOR", Fixes: "PATCH", Features: "MINOR" } as const;
+
+async function makeRoot(): Promise<{ root: string; dir: string; output: string }> {
   const root = await mkdtemp(path.join(tmpdir(), "changelog-d-"));
   const dir = path.join(root, "changelog.d");
+  const output = path.join(root, "CHANGELOG.md");
   await mkdir(dir);
-  await writeFile(path.join(dir, "fix-01.md"), "## Fixes\n\n- fix #01\n");
-  await writeFile(path.join(dir, "fix-02.md"), "## Fixes\n\n- fix #02\n");
-  await writeFile(path.join(dir, "feat-01.md"), "## Features\n\n- Added a new feature!\n");
-  return root;
+  return { root, dir, output };
 }
 
-test("generate writes the merged entry and clears fragments", async () => {
-  const root = await makeFixture();
-  const dir = path.join(root, "changelog.d");
-  const output = path.join(root, "CHANGELOG.md");
+test("generate reads the version from the changelog and marks it unreleased", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(output, "# 1.0.0\n\n## Features\n\n- Released 1.0!\n");
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some fix\n");
 
-  const result = await generate({ dir, output, title: "Unreleased", clear: true, dryRun: false });
-
+  const first = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  assert.equal(first.version, "1.0.1");
+  assert.equal(first.previous, "1.0.0");
+  assert.equal(first.level, "PATCH");
   assert.equal(
     await readFile(output, "utf8"),
-    "# Unreleased\n\n## Features\n\n- Added a new feature!\n\n## Fixes\n\n- fix #01\n- fix #02\n",
+    "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- Some fix\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
   assert.deepEqual(await readdir(dir), []);
-  assert.equal(result.cleared.length, 3);
-  assert.equal(result.written, true);
-});
 
-test("generate prepends to an existing changelog", async () => {
-  const root = await makeFixture();
-  const output = path.join(root, "CHANGELOG.md");
-  await writeFile(output, "# Changelog\n\n## 1.0.0\n\n- old\n");
+  await writeFile(path.join(dir, "feat.md"), "## Features\n\n- A new feature!\n");
 
-  await generate({
-    dir: path.join(root, "changelog.d"),
-    output,
-    title: "Unreleased",
-    clear: false,
-    dryRun: false,
-  });
-
+  const second = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  assert.equal(second.version, "1.1.0");
+  assert.equal(second.level, "MINOR");
   assert.equal(
     await readFile(output, "utf8"),
-    "# Unreleased\n\n## Features\n\n- Added a new feature!\n\n## Fixes\n\n- fix #01\n- fix #02\n\n# Changelog\n\n## 1.0.0\n\n- old\n",
+    "# 1.1.0 - UNRELEASED\n\n## Fixes\n\n- Some fix\n\n## Features\n\n- A new feature!\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
 });
 
-test("generate titles the section with the next version when a current version is given", async () => {
-  const root = await makeFixture();
-  const output = path.join(root, "CHANGELOG.md");
+test("generate keeps 1.0.0 while the initial release is unreleased", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some fix\n");
 
-  const result = await generate({
-    dir: path.join(root, "changelog.d"),
-    output,
-    current: "1.2.3",
-    clear: false,
-    dryRun: false,
-    order: ["Fixes", "Features"],
-    bump: { Fixes: "PATCH", Features: "MINOR" },
-  });
-
-  assert.equal(result.title, "1.3.0");
-  assert.equal(result.level, "MINOR");
+  const first = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  assert.equal(first.version, "1.0.0");
+  assert.equal(first.previous, undefined);
   assert.equal(
     await readFile(output, "utf8"),
-    "# 1.3.0\n\n## Fixes\n\n- fix #01\n- fix #02\n\n## Features\n\n- Added a new feature!\n",
+    "# 1.0.0 - UNRELEASED\n\n## Fixes\n\n- Some fix\n",
+  );
+
+  await writeFile(path.join(dir, "feat.md"), "## Features\n\n- A new feature!\n");
+  const second = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+  assert.equal(second.version, "1.0.0");
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 1.0.0 - UNRELEASED\n\n## Fixes\n\n- Some fix\n\n## Features\n\n- A new feature!\n",
   );
 });
 
-test("generate keeps the current version when no section is bumpable", async () => {
-  const root = await makeFixture();
-  const output = path.join(root, "CHANGELOG.md");
+test("generate is idempotent when fragments are kept", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some fix\n");
 
-  const result = await generate({
-    dir: path.join(root, "changelog.d"),
-    output,
-    current: "1.2.3",
-    clear: false,
-    dryRun: true,
-    order: ["Fixes", "Features"],
-    bump: {},
-  });
+  await generate({ dir, output, clear: false, dryRun: false, order: ORDER, bump: BUMP });
+  await generate({ dir, output, clear: false, dryRun: false, order: ORDER, bump: BUMP });
 
-  assert.equal(result.title, "1.2.3");
+  const text = await readFile(output, "utf8");
+  assert.equal((text.match(/- Some fix/g) ?? []).length, 1);
+});
+
+test("generate does nothing without fragments or an unreleased section", async () => {
+  const { dir, output } = await makeRoot();
+
+  const result = await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
+
+  assert.equal(result.written, false);
+  assert.equal(result.fragments.length, 0);
+  assert.equal(existsSync(output), false);
+});
+
+test("generate keeps the last released version when no section bumps", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(output, "# 1.2.3\n\n## Features\n\n- old\n");
+  await writeFile(path.join(dir, "docs.md"), "## Docs\n\n- docs\n");
+
+  const result = await generate({ dir, output, clear: true, dryRun: false, order: ["Docs"], bump: {} });
+
+  assert.equal(result.version, "1.2.3");
   assert.equal(result.level, undefined);
 });
 
-test("dry run neither writes nor clears", async () => {
-  const root = await makeFixture();
-  const output = path.join(root, "CHANGELOG.md");
-
-  const result = await generate({
-    dir: path.join(root, "changelog.d"),
+test("release removes the unreleased marker", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(
     output,
-    title: "Unreleased",
-    clear: true,
-    dryRun: true,
-  });
+    "# 1.1.0 - UNRELEASED\n\n## Features\n\n- A new feature!\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
 
-  assert.equal(existsSync(output), false);
-  assert.equal(result.written, false);
-  assert.equal((await readdir(path.join(root, "changelog.d"))).length, 3);
-});
+  const result = await release({ output, dir, dryRun: false });
 
-test("generate applies the configured order and rejects unknown sections", async () => {
-  const root = await makeFixture();
-  const dir = path.join(root, "changelog.d");
-  const output = path.join(root, "CHANGELOG.md");
-
-  await generate({
-    dir,
-    output,
-    title: "Unreleased",
-    clear: false,
-    dryRun: false,
-    order: ["Fixes", "Features"],
-  });
+  assert.deepEqual(result, { version: "1.1.0", written: true });
   assert.equal(
     await readFile(output, "utf8"),
-    "# Unreleased\n\n## Fixes\n\n- fix #01\n- fix #02\n\n## Features\n\n- Added a new feature!\n",
+    "# 1.1.0\n\n## Features\n\n- A new feature!\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
-
-  await writeFile(path.join(dir, "chore-01.md"), "## Chores\n\n- chore\n");
-  await assert.rejects(
-    generate({ dir, output, title: "Unreleased", clear: true, dryRun: false, order: ["Fixes"] }),
-    /Unknown changelog section "## Chores"/,
-  );
-  assert.equal(existsSync(path.join(dir, "chore-01.md")), true);
 });
 
-test("bumpVersion applies the highest pending bump level", async () => {
-  const root = await makeFixture();
-  const dir = path.join(root, "changelog.d");
+test("release fails without an unreleased section", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(output, "# 1.0.0\n\n## Features\n\n- Released 1.0!\n");
 
-  const minor = await bumpVersion({
-    dir,
-    current: "1.2.3",
-    order: ["Fixes", "Features"],
-    bump: { Fixes: "PATCH", Features: "MINOR" },
-  });
-  assert.deepEqual(minor, { current: "1.2.3", next: "1.3.0", level: "MINOR" });
-
-  await writeFile(path.join(dir, "break-01.md"), "## Breaking Changes\n\n- removed API\n");
-  const major = await bumpVersion({
-    dir,
-    current: "1.2.3",
-    order: ["Breaking Changes", "Fixes", "Features"],
-    bump: { "Breaking Changes": "MAJOR", Fixes: "PATCH", Features: "MINOR" },
-  });
-  assert.deepEqual(major, { current: "1.2.3", next: "2.0.0", level: "MAJOR" });
+  await assert.rejects(release({ output, dir, dryRun: false }), /No UNRELEASED section/);
 });
 
-test("bumpVersion leaves the version unchanged without bumpable sections", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "changelog-d-"));
-  const dir = path.join(root, "changelog.d");
-  await mkdir(dir);
+test("release fails while fragments are pending", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(output, "# 1.1.0 - UNRELEASED\n\n## Features\n\n- A new feature!\n");
+  await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some fix\n");
 
-  const result = await bumpVersion({ dir, current: "1.2.3", order: ["Fixes"], bump: {} });
-  assert.deepEqual(result, { current: "1.2.3", next: "1.2.3", level: undefined });
+  await assert.rejects(release({ output, dir, dryRun: false }), /pending fragment/);
+});
+
+test("release dry run does not write", async () => {
+  const { dir, output } = await makeRoot();
+  const before = "# 1.1.0 - UNRELEASED\n\n## Features\n\n- A new feature!\n";
+  await writeFile(output, before);
+
+  const result = await release({ output, dir, dryRun: true });
+
+  assert.equal(result.written, false);
+  assert.equal(await readFile(output, "utf8"), before);
 });
