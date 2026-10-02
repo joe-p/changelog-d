@@ -3,12 +3,29 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { parseConfig, loadConfig } from "../src/config.ts";
+import { parseConfig, loadConfig, sectionOrder, sectionBumps } from "../src/config.ts";
 
-test("parseConfig reads a section order", () => {
-  assert.deepEqual(parseConfig('{"sections":["Fixes","Features"]}', "test"), {
-    sections: ["Fixes", "Features"],
+test("parseConfig reads sections and normalizes bump levels", () => {
+  const config = parseConfig(
+    '{"sections":[{"title":"Fixes","bump":"patch"},{"title":"Features","bump":"MINOR"},{"title":"Docs"}]}',
+    "test",
+  );
+  assert.deepEqual(config, {
+    sections: [
+      { title: "Fixes", bump: "PATCH" },
+      { title: "Features", bump: "MINOR" },
+      { title: "Docs" },
+    ],
   });
+  assert.deepEqual(sectionOrder(config), ["Fixes", "Features", "Docs"]);
+  assert.deepEqual(sectionBumps(config), { Fixes: "PATCH", Features: "MINOR" });
+});
+
+test("parseConfig rejects invalid bump levels", () => {
+  assert.throws(
+    () => parseConfig('{"sections":[{"title":"Fixes","bump":"HUGE"}]}', "test"),
+    /invalid bump level for "Fixes"/,
+  );
 });
 
 test("parseConfig rejects invalid JSON", () => {
@@ -20,14 +37,19 @@ test("parseConfig rejects a missing or empty sections array", () => {
   assert.throws(() => parseConfig('{"sections":[]}', "test"), /"sections" must be a non-empty array/);
 });
 
-test("parseConfig rejects non-string entries", () => {
-  assert.throws(() => parseConfig('{"sections":["Fixes",3]}', "test"), /must be a non-empty string/);
+test("parseConfig rejects sections that are not objects", () => {
+  assert.throws(() => parseConfig('{"sections":["Fixes"]}', "test"), /sections\[0\] must be an object/);
+});
+
+test("parseConfig rejects missing or empty titles", () => {
+  assert.throws(() => parseConfig('{"sections":[{"bump":"PATCH"}]}', "test"), /\.title must be a non-empty string/);
+  assert.throws(() => parseConfig('{"sections":[{"title":"  "}]}', "test"), /\.title must be a non-empty string/);
 });
 
 test("parseConfig rejects duplicate sections", () => {
   assert.throws(
-    () => parseConfig('{"sections":["Fixes","Fixes"]}', "test"),
-    /duplicate section\(s\): Fixes/,
+    () => parseConfig('{"sections":[{"title":"Fixes"},{"title":"Fixes"}]}', "test"),
+    /duplicate section "Fixes"/,
   );
 });
 
@@ -39,6 +61,6 @@ test("loadConfig reports an explicitly missing config file", async () => {
 test("loadConfig reads a config file from disk", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "changelog-d-config-"));
   const file = path.join(dir, "changelog-d.json");
-  await writeFile(file, '{"sections":["Fixes"]}');
-  assert.deepEqual(await loadConfig(file), { sections: ["Fixes"] });
+  await writeFile(file, '{"sections":[{"title":"Fixes","bump":"PATCH"}]}');
+  assert.deepEqual(await loadConfig(file), { sections: [{ title: "Fixes", bump: "PATCH" }] });
 });

@@ -1,10 +1,28 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { isBumpLevel, type BumpLevel } from "./bump.ts";
 
 export const DEFAULT_CONFIG_FILE = "changelog-d.json";
 
+export interface SectionConfig {
+  title: string;
+  bump?: BumpLevel;
+}
+
 export interface ChangelogConfig {
-  sections: string[];
+  sections: SectionConfig[];
+}
+
+export function sectionOrder(config: ChangelogConfig): string[] {
+  return config.sections.map((section) => section.title);
+}
+
+export function sectionBumps(config: ChangelogConfig): Record<string, BumpLevel> {
+  const bumps: Record<string, BumpLevel> = {};
+  for (const section of config.sections) {
+    if (section.bump) bumps[section.title] = section.bump;
+  }
+  return bumps;
 }
 
 export function parseConfig(raw: string, source: string): ChangelogConfig {
@@ -21,21 +39,41 @@ export function parseConfig(raw: string, source: string): ChangelogConfig {
 
   const { sections } = parsed as Record<string, unknown>;
   if (!Array.isArray(sections) || sections.length === 0) {
-    throw new Error(`${source}: "sections" must be a non-empty array of section titles`);
+    throw new Error(`${source}: "sections" must be a non-empty array of section objects`);
   }
 
-  for (const section of sections) {
-    if (typeof section !== "string" || section.trim() === "") {
-      throw new Error(`${source}: every entry in "sections" must be a non-empty string`);
+  const titles: string[] = [];
+  const result: SectionConfig[] = [];
+
+  for (const [index, entry] of sections.entries()) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw new Error(`${source}: sections[${index}] must be an object`);
     }
+
+    const { title, bump } = entry as Record<string, unknown>;
+    if (typeof title !== "string" || title.trim() === "") {
+      throw new Error(`${source}: sections[${index}].title must be a non-empty string`);
+    }
+    if (titles.includes(title)) {
+      throw new Error(`${source}: duplicate section "${title}"`);
+    }
+    titles.push(title);
+
+    const section: SectionConfig = { title };
+    if (bump !== undefined) {
+      const normalized = typeof bump === "string" ? bump.toUpperCase() : bump;
+      if (!isBumpLevel(normalized)) {
+        throw new Error(
+          `${source}: invalid bump level for "${title}": ${JSON.stringify(bump)}. Expected MAJOR, MINOR or PATCH.`,
+        );
+      }
+      section.bump = normalized;
+    }
+
+    result.push(section);
   }
 
-  const duplicates = sections.filter((section, i) => sections.indexOf(section) !== i);
-  if (duplicates.length > 0) {
-    throw new Error(`${source}: duplicate section(s): ${[...new Set(duplicates)].join(", ")}`);
-  }
-
-  return { sections: sections as string[] };
+  return { sections: result };
 }
 
 export async function readConfig(configPath: string): Promise<ChangelogConfig> {
