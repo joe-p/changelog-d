@@ -19,14 +19,14 @@ function readVersion(): string {
   }
 }
 
-const HELP = `changelog-d - merge changelog.d fragments into a changelog
+const HELP = `semfrag - merge changelog.d fragments into a changelog
 
 Usage:
-  changelog-d [generate] [options]
-  changelog-d release [options]
-  changelog-d latest [options]
-  changelog-d notes [options]
-  changelog-d init [options]
+  semfrag [generate] [options]
+  semfrag release [options]
+  semfrag latest [options]
+  semfrag notes [options]
+  semfrag init [options]
 
 Commands:
   generate              Merge pending fragments into an unreleased section and
@@ -93,7 +93,7 @@ Config file:
 `;
 
 function fail(message: string): never {
-  process.stderr.write(`changelog-d: ${message}\n`);
+  process.stderr.write(`semfrag: ${message}\n`);
   process.exit(1);
 }
 
@@ -251,7 +251,7 @@ async function main(): Promise<void> {
 
   const from = result.previous ?? "initial";
   const bump = result.level && result.previous ? ` (${result.level})` : "";
-  process.stderr.write(`changelog-d: ${from} -> ${result.version}${bump}\n`);
+  process.stderr.write(`semfrag: ${from} -> ${result.version}${bump}\n`);
 
   process.stdout.write(
     `Generated ${output} from ${result.fragments.length} fragment(s)` +

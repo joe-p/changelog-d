@@ -93,13 +93,13 @@ test("parseConfig rejects duplicate sections", () => {
 });
 
 test("loadConfig reports an explicitly missing config file", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "changelog-d-config-"));
+  const dir = await mkdtemp(path.join(tmpdir(), "semfrag-config-"));
   await assert.rejects(loadConfig(path.join(dir, "missing.json")), /Config file not found/);
 });
 
 test("loadConfig reads a config file from disk", async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), "changelog-d-config-"));
-  const file = path.join(dir, "changelog-d.json");
+  const dir = await mkdtemp(path.join(tmpdir(), "semfrag-config-"));
+  const file = path.join(dir, "semfrag.json");
   await writeFile(file, '{"sections":[{"title":"Fixes","bump":"PATCH"}]}');
   assert.deepEqual(await loadConfig(file), { sections: [{ title: "Fixes", bump: "PATCH" }] });
 });

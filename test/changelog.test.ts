@@ -15,7 +15,7 @@ const ORDER = ["Breaking Changes", "Fixes", "Features"];
 const BUMP = { "Breaking Changes": "MAJOR", Fixes: "PATCH", Features: "MINOR" } as const;
 
 async function makeRoot(): Promise<{ root: string; dir: string; output: string }> {
-  const root = await mkdtemp(path.join(tmpdir(), "changelog-d-"));
+  const root = await mkdtemp(path.join(tmpdir(), "semfrag-"));
   const dir = path.join(root, "changelog.d");
   const output = path.join(root, "CHANGELOG.md");
   await mkdir(dir);
@@ -28,12 +28,12 @@ async function makeInitRoot(): Promise<{
   output: string;
   config: string;
 }> {
-  const root = await mkdtemp(path.join(tmpdir(), "changelog-d-"));
+  const root = await mkdtemp(path.join(tmpdir(), "semfrag-"));
   return {
     root,
     dir: path.join(root, "changelog.d"),
     output: path.join(root, "CHANGELOG.md"),
-    config: path.join(root, "changelog-d.json"),
+    config: path.join(root, "semfrag.json"),
   };
 }
 
@@ -566,7 +566,7 @@ test("CLI stdout uses the default changelog and previews existing unreleased con
   const { root, dir, output } = await makeRoot();
   await writeFile(output, "# 2.3.4\n\n## Fixes\n- old\n");
   await writeFile(
-    path.join(root, "changelog-d.json"),
+    path.join(root, "semfrag.json"),
     JSON.stringify({ sections: [{ title: "Fixes", bump: "PATCH" }] }),
   );
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n- new\n");
@@ -722,7 +722,7 @@ test("CLI init writes the requested initial version and default config", async (
 
   const result = await run(process.execPath, [cli, "init", "--initial", "0.1.0"], { cwd: root });
 
-  assert.match(result.stdout, /Initialized .*0\.1\.0 - UNRELEASED and wrote .*changelog-d\.json/);
+  assert.match(result.stdout, /Initialized .*0\.1\.0 - UNRELEASED and wrote .*semfrag\.json/);
   assert.equal(await readFile(output, "utf8"), "# 0.1.0 - UNRELEASED\n");
   assert.deepEqual(await readdir(dir), []);
   assert.equal(JSON.parse(await readFile(config, "utf8")).sections[0].bump, "MINOR");
