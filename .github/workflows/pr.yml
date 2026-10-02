@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -45,3 +47,15 @@ jobs:
 
       - name: Check changelog
         run: node dist/cli.js generate --dry-run
+
+      - name: Require a changelog fragment for src changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          changed="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          if printf '%s\n' "$changed" | grep -qE '^src/'; then
+            if ! printf '%s\n' "$changed" | grep -qE '^changelog\.d/'; then
+              echo "::error::Changes under src/ require a changelog fragment in changelog.d/"
+              exit 1
+            fi
+          fi
