@@ -75,6 +75,66 @@ test("generate is idempotent when fragments are kept", async () => {
   assert.equal((text.match(/- Some fix/g) ?? []).length, 1);
 });
 
+test("generate preserves raw sections and nested markdown", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(
+    path.join(dir, "details.md"),
+    "## Details\n\nSome **bold** text.\n\n### Nested\n\n- item\n",
+  );
+
+  const result = await generate({
+    dir,
+    output,
+    clear: true,
+    dryRun: false,
+    order: [...ORDER, "Details"],
+    bump: BUMP,
+    types: { Details: "raw" },
+  });
+
+  assert.equal(result.version, "1.0.0");
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 1.0.0 - UNRELEASED\n\n## Details\n\nSome **bold** text.\n\n### Nested\n\n- item\n",
+  );
+});
+
+test("generate is idempotent for raw sections when fragments are kept", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(path.join(dir, "details.md"), "## Details\n\nLine one.\n\nLine two.\n");
+
+  const options = {
+    dir,
+    output,
+    clear: false,
+    dryRun: false,
+    order: ["Details"],
+    bump: {},
+    types: { Details: "raw" as const },
+  };
+  await generate(options);
+  await generate(options);
+
+  const text = await readFile(output, "utf8");
+  assert.equal((text.match(/Line one\./g) ?? []).length, 1);
+});
+
+test("release merges raw sections from prereleases", async () => {
+  const { dir, output } = await makeRoot();
+  await writeFile(
+    output,
+    "# 1.0.1 - UNRELEASED\n\n## Details\n\nNew details.\n\n# 1.0.1-alpha.1\n\n## Details\n\nOld details.\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+
+  const result = await release({ output, dir, dryRun: false, order: [...ORDER, "Details"], types: { Details: "raw" } });
+
+  assert.deepEqual(result, { version: "1.0.1", written: true });
+  assert.equal(
+    await readFile(output, "utf8"),
+    "# 1.0.1\n\n## Details\n\nNew details.\n\nOld details.\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+  );
+});
+
 test("generate does nothing without fragments or an unreleased section", async () => {
   const { dir, output } = await makeRoot();
 

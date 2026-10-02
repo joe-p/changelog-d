@@ -7,6 +7,7 @@ import {
   loadConfig,
   sectionBumps,
   sectionOrder,
+  sectionTypes,
 } from "./config.ts";
 
 function readVersion(): string {
@@ -59,18 +60,23 @@ Prereleases:
 
 Config file:
   A JSON object with a "sections" array listing the allowed sections in the order
-  they should appear. Each section has a "title" and an optional semantic version
-  "bump" level (MAJOR, MINOR or PATCH), e.g.
+  they should appear. Each section has a "title", an optional semantic version
+  "bump" level (MAJOR, MINOR or PATCH) and an optional "type" of "list" (the
+  default) or "raw", e.g.
 
     {
       "sections": [
         { "title": "Breaking Changes", "bump": "MAJOR" },
         { "title": "Fixes", "bump": "PATCH" },
-        { "title": "Features", "bump": "MINOR" }
+        { "title": "Features", "bump": "MINOR" },
+        { "title": "Upgrade Guide", "type": "raw" }
       ]
     }
 
-  Sections found in fragments that are not listed cause an error.
+  A "list" section removes blank lines and drops duplicate lines. A "raw"
+  section preserves its markdown verbatim, so it may contain nested markdown
+  such as blank lines, code blocks and "###" headings. It may not contain "#" or
+  "##" headings. Sections found in fragments that are not listed cause an error.
 `;
 
 function fail(message: string): never {
@@ -148,6 +154,7 @@ async function main(): Promise<void> {
       dryRun,
       prerelease,
       order: config ? sectionOrder(config) : undefined,
+      types: config ? sectionTypes(config) : undefined,
     });
     const released = result.prerelease ?? result.version;
     if (dryRun) {
@@ -166,6 +173,7 @@ async function main(): Promise<void> {
     dryRun,
     order: config ? sectionOrder(config) : undefined,
     bump: config ? sectionBumps(config) : undefined,
+    types: config ? sectionTypes(config) : undefined,
   });
 
   if (result.fragments.length === 0) {

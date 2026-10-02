@@ -21,6 +21,29 @@ test("parseFragment ignores content before the first heading", () => {
   assert.deepEqual(parseFragment("intro\n\n## Fixes\n\n- a\n"), [{ title: "Fixes", lines: ["- a"] }]);
 });
 
+test("parseFragment preserves raw markdown for raw sections", () => {
+  const sections = parseFragment(
+    "## Details\n\nSome intro.\n\n### Nested\n\n- item\n\n```js\nconst a = 1;\n```\n",
+    { Details: "raw" },
+  );
+
+  assert.deepEqual(sections, [
+    {
+      title: "Details",
+      type: "raw",
+      lines: [],
+      body: "Some intro.\n\n### Nested\n\n- item\n\n```js\nconst a = 1;\n```",
+    },
+  ]);
+});
+
+test("parseFragment rejects level-1 and level-2 headings inside raw sections", () => {
+  assert.throws(
+    () => parseFragment("## Details\n\n# Nope\n", { Details: "raw" }),
+    /may not contain a level-1 or level-2 heading/,
+  );
+});
+
 test("mergeFragments groups sections by title in first-seen order", () => {
   const merged = mergeFragments([
     { name: "fix-01.md", content: "## Fixes\n\n- fix #01\n" },
@@ -96,6 +119,23 @@ test("mergeSections groups by title and drops duplicate lines", () => {
   assert.deepEqual(merged, [{ title: "Fixes", lines: ["- fix #01", "- fix #02"] }]);
 });
 
+test("mergeSections concatenates raw bodies and drops duplicate blocks", () => {
+  const merged = mergeSections([
+    [{ title: "Details", type: "raw", lines: [], body: "one" }],
+    [{ title: "Details", type: "raw", lines: [], body: "two" }],
+    [{ title: "Details", type: "raw", lines: [], body: "one" }],
+  ]);
+  assert.deepEqual(merged, [{ title: "Details", type: "raw", lines: [], body: "one\n\ntwo" }]);
+});
+
+test("renderChangelog renders raw sections verbatim", () => {
+  const output = renderChangelog(
+    [{ title: "Details", type: "raw", lines: [], body: "Some intro.\n\n### Nested\n\n- item" }],
+    "Unreleased",
+  );
+  assert.equal(output, "# Unreleased\n\n## Details\n\nSome intro.\n\n### Nested\n\n- item\n");
+});
+
 test("parseChangelog splits released and unreleased blocks", () => {
   const blocks = parseChangelog(
     "# 1.1.0 - UNRELEASED\n\n## Fixes\n\n- new\n\n# 1.0.0\n\n## Features\n\n- old\n",
@@ -121,4 +161,14 @@ test("parseChangelog preserves raw block text", () => {
   const markdown = "# 1.0.0\n\n## Features\n\n- old\n\n# 0.9.0\n\n## Fixes\n\n- older\n";
   const [first] = parseChangelog(markdown);
   assert.equal(first?.raw, "# 1.0.0\n\n## Features\n\n- old");
+});
+
+test("parseChangelog preserves raw sections when types are given", () => {
+  const blocks = parseChangelog(
+    "# 1.0.0\n\n## Details\n\nIntro.\n\n### Nested\n\n- x\n",
+    { Details: "raw" },
+  );
+  assert.deepEqual(blocks[0]?.sections, [
+    { title: "Details", type: "raw", lines: [], body: "Intro.\n\n### Nested\n\n- x" },
+  ]);
 });

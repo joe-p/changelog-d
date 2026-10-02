@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { parseConfig, loadConfig, sectionOrder, sectionBumps } from "../src/config.ts";
+import { parseConfig, loadConfig, sectionOrder, sectionBumps, sectionTypes } from "../src/config.ts";
 
 test("parseConfig reads sections and normalizes bump levels", () => {
   const config = parseConfig(
@@ -21,10 +21,31 @@ test("parseConfig reads sections and normalizes bump levels", () => {
   assert.deepEqual(sectionBumps(config), { Fixes: "PATCH", Features: "MINOR" });
 });
 
+test("parseConfig reads and normalizes section types", () => {
+  const config = parseConfig(
+    '{"sections":[{"title":"Fixes","bump":"PATCH"},{"title":"Details","type":"RAW"}]}',
+    "test",
+  );
+  assert.deepEqual(config, {
+    sections: [
+      { title: "Fixes", bump: "PATCH" },
+      { title: "Details", type: "raw" },
+    ],
+  });
+  assert.deepEqual(sectionTypes(config), { Details: "raw" });
+});
+
 test("parseConfig rejects invalid bump levels", () => {
   assert.throws(
     () => parseConfig('{"sections":[{"title":"Fixes","bump":"HUGE"}]}', "test"),
     /invalid bump level for "Fixes"/,
+  );
+});
+
+test("parseConfig rejects invalid section types", () => {
+  assert.throws(
+    () => parseConfig('{"sections":[{"title":"Details","type":"fancy"}]}', "test"),
+    /invalid section type for "Details"/,
   );
 });
 

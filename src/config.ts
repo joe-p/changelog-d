@@ -1,12 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { isBumpLevel, type BumpLevel } from "./bump.ts";
+import { isSectionType, type SectionType, type SectionTypes } from "./generate.ts";
 
 export const DEFAULT_CONFIG_FILE = "changelog-d.json";
 
 export interface SectionConfig {
   title: string;
   bump?: BumpLevel;
+  type?: SectionType;
 }
 
 export interface ChangelogConfig {
@@ -23,6 +25,14 @@ export function sectionBumps(config: ChangelogConfig): Record<string, BumpLevel>
     if (section.bump) bumps[section.title] = section.bump;
   }
   return bumps;
+}
+
+export function sectionTypes(config: ChangelogConfig): SectionTypes {
+  const types: SectionTypes = {};
+  for (const section of config.sections) {
+    if (section.type) types[section.title] = section.type;
+  }
+  return types;
 }
 
 export function parseConfig(raw: string, source: string): ChangelogConfig {
@@ -50,7 +60,7 @@ export function parseConfig(raw: string, source: string): ChangelogConfig {
       throw new Error(`${source}: sections[${index}] must be an object`);
     }
 
-    const { title, bump } = entry as Record<string, unknown>;
+    const { title, bump, type } = entry as Record<string, unknown>;
     if (typeof title !== "string" || title.trim() === "") {
       throw new Error(`${source}: sections[${index}].title must be a non-empty string`);
     }
@@ -68,6 +78,15 @@ export function parseConfig(raw: string, source: string): ChangelogConfig {
         );
       }
       section.bump = normalized;
+    }
+    if (type !== undefined) {
+      const normalized = typeof type === "string" ? type.toLowerCase() : type;
+      if (!isSectionType(normalized)) {
+        throw new Error(
+          `${source}: invalid section type for "${title}": ${JSON.stringify(type)}. Expected list or raw.`,
+        );
+      }
+      section.type = normalized;
     }
 
     result.push(section);

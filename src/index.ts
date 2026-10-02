@@ -6,8 +6,12 @@ export {
   parseChangelog,
   renderChangelog,
   prependChangelog,
+  isSectionType,
+  SECTION_TYPES,
   UNRELEASED_MARKER,
   type Section,
+  type SectionType,
+  type SectionTypes,
   type Fragment,
   type VersionBlock,
 } from "./generate.ts";
@@ -28,6 +32,7 @@ export {
   loadConfig,
   sectionOrder,
   sectionBumps,
+  sectionTypes,
   type ChangelogConfig,
   type SectionConfig,
 } from "./config.ts";

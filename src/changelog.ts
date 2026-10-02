@@ -10,6 +10,7 @@ import {
   UNRELEASED_MARKER,
   type Fragment,
   type Section,
+  type SectionTypes,
   type VersionBlock,
 } from "./generate.ts";
 import {
@@ -31,6 +32,7 @@ export interface GenerateOptions {
   dryRun: boolean;
   order?: string[];
   bump?: Record<string, BumpLevel>;
+  types?: SectionTypes;
 }
 
 export interface GenerateResult {
@@ -50,6 +52,7 @@ export interface ReleaseOptions {
   dryRun: boolean;
   prerelease?: string;
   order?: string[];
+  types?: SectionTypes;
 }
 
 export interface ReleaseResult {
@@ -118,11 +121,12 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
   const existing =
     !toStdout && existsSync(options.output) ? await readFile(options.output, "utf8") : "";
 
-  const blocks = parseChangelog(existing);
+  const blocks = parseChangelog(existing, options.types);
   const existingUnreleased = blocks[0]?.unreleased ? blocks[0].sections : [];
   const sections = mergeSections(
-    [existingUnreleased, mergeFragments(fragments, options.order)],
+    [existingUnreleased, mergeFragments(fragments, options.order, options.types)],
     options.order,
+    options.types,
   );
 
   if (sections.length === 0) {
@@ -165,7 +169,7 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
 
 export async function release(options: ReleaseOptions): Promise<ReleaseResult> {
   const existing = await readFile(options.output, "utf8");
-  const blocks = parseChangelog(existing);
+  const blocks = parseChangelog(existing, options.types);
 
   const dir = options.dir ?? "changelog.d";
   const pending = await listFragments(dir);
@@ -229,7 +233,7 @@ async function releaseFinal(
     index += 1;
   }
 
-  const sections = mergeSections(consumed.map((block) => block.sections), options.order);
+  const sections = mergeSections(consumed.map((block) => block.sections), options.order, options.types);
   const entry = renderChangelog(sections, base);
   const remainder = blocks
     .slice(index)

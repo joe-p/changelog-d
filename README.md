@@ -253,18 +253,50 @@ each section implies:
   "sections": [
     { "title": "Breaking Changes", "bump": "MAJOR" },
     { "title": "Fixes", "bump": "PATCH" },
-    { "title": "Features", "bump": "MINOR" }
+    { "title": "Features", "bump": "MINOR" },
+    { "title": "Upgrade Guide", "type": "raw" }
   ]
 }
 ```
 
 - `title` is required and must be unique.
 - `bump` is optional and must be `MAJOR`, `MINOR`, or `PATCH` (case-insensitive).
+- `type` is optional and must be `list` (the default) or `raw` (case-insensitive).
 - A fragment section that is not listed causes an error.
 
 The highest bump level among the pending sections is applied to the last released
 version. For example, `Breaking Changes` and `Features` fragments on top of
 `1.2.3` produce `2.0.0`.
+
+### Section types
+
+A `list` section (the default) holds markdown list items. Blank lines are removed
+and duplicate lines across fragments are collapsed, so `- Fix a bug` only ever
+appears once.
+
+A `raw` section preserves the fragment markdown verbatim, including blank lines,
+indentation, code blocks and nested headings. This is useful for prose or a
+migration guide. When several fragments contribute to the same raw section their
+bodies are concatenated with a blank line between them; an identical body is
+never added twice.
+
+The only restriction is that a raw section may not contain a level-1 (`#`) or
+level-2 (`##`) heading, because those delimit versions and sections. Use `###`
+or deeper for nested headings:
+
+````md
+## Upgrade Guide
+
+Run the migration before starting the server:
+
+```sh
+migrate up
+```
+
+### From 1.x
+
+Replace `oldThing()` with `newThing()`.
+````
 
 ## Programmatic API
 
@@ -276,14 +308,15 @@ await generate({
   output: "CHANGELOG.md",
   clear: true,
   dryRun: false,
-  order: ["Breaking Changes", "Fixes", "Features"],
+  order: ["Breaking Changes", "Fixes", "Features", "Upgrade Guide"],
   bump: { "Breaking Changes": "MAJOR", Fixes: "PATCH", Features: "MINOR" },
+  types: { "Upgrade Guide": "raw" },
 });
 
 await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false });
 await release({ output: "CHANGELOG.md", dir: "changelog.d", dryRun: false, prerelease: "alpha" });
 
-const blocks = parseChangelog("# 1.0.0\n\n## Features\n\n- hello\n");
+const blocks = parseChangelog("# 1.0.0\n\n## Features\n\n- hello\n", { Features: "list" });
 ```
 
 ## License

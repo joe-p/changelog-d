@@ -1,6 +1,18 @@
+export const SECTION_TYPES = ["list", "raw"] as const;
+
+export type SectionType = (typeof SECTION_TYPES)[number];
+
+export function isSectionType(value: unknown): value is SectionType {
+  return typeof value === "string" && (SECTION_TYPES as readonly string[]).includes(value);
+}
+
+export type SectionTypes = Record<string, SectionType>;
+
 export interface Section {
   title: string;
+  type?: SectionType;
   lines: string[];
+  body?: string;
 }
 
 export interface Fragment {
@@ -21,32 +33,85 @@ const SECTION_RE = /^##\s+(.*\S)\s*$/;
 const VERSION_HEADING_RE = /^#\s+(.*\S)\s*$/;
 const UNRELEASED_HEADING_RE = /^(.*?)\s*-\s*UNRELEASED\s*$/i;
 
-export function parseFragment(content: string): Section[] {
+const RAW_HEADING_RE = /^#{1,2}(\s|$)/;
+
+export function parseFragment(content: string, types: SectionTypes = {}): Section[] {
   const sections: Section[] = [];
   let current: Section | undefined;
+  let rawLines: string[] | undefined;
+
+  const flushRaw = (): void => {
+    if (!current || rawLines === undefined) return;
+    current.body = rawLines.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
+  };
 
   for (const rawLine of content.split(/\r?\n/)) {
     const match = SECTION_RE.exec(rawLine);
     if (match) {
-      current = { title: match[1]!, lines: [] };
+      flushRaw();
+      const title = match[1]!;
+      current = { title, lines: [] };
+      if (types[title] === "raw") {
+        current.type = "raw";
+        rawLines = [];
+      } else {
+        rawLines = undefined;
+      }
       sections.push(current);
       continue;
     }
     if (!current) continue;
+    if (rawLines !== undefined) {
+      if (RAW_HEADING_RE.test(rawLine)) {
+        throw new Error(
+          `Raw section "## ${current.title}" may not contain a level-1 or level-2 heading: ${JSON.stringify(
+            rawLine.trim(),
+          )}. Use ### or deeper.`,
+        );
+      }
+      rawLines.push(rawLine);
+      continue;
+    }
     if (rawLine.trim() === "") continue;
     current.lines.push(rawLine.trimEnd());
   }
 
+  flushRaw();
   return sections;
 }
 
-export function mergeSections(groups: Section[][], order?: string[]): Section[] {
+export function mergeSections(groups: Section[][], order?: string[], types: SectionTypes = {}): Section[] {
   const ordered: Section[] = [];
   const byTitle = new Map<string, Section>();
+  const rawBodies = new Map<string, Set<string>>();
 
   for (const group of groups) {
     for (const section of group) {
       if (order) assertKnownSection(section.title, order);
+
+      if ((section.type ?? types[section.title]) === "raw") {
+        const body = section.body ?? "";
+        if (body.trim() === "") continue;
+
+        let merged = byTitle.get(section.title);
+        if (!merged) {
+          merged = { title: section.title, type: "raw", lines: [], body: "" };
+          byTitle.set(section.title, merged);
+          rawBodies.set(section.title, new Set());
+          ordered.push(merged);
+        }
+
+        let seen = rawBodies.get(section.title);
+        if (!seen) {
+          seen = new Set();
+          rawBodies.set(section.title, seen);
+        }
+        if (seen.has(body)) continue;
+        seen.add(body);
+        merged.body = merged.body === "" ? body : `${merged.body}\n\n${body}`;
+        continue;
+      }
+
       if (section.lines.length === 0) continue;
 
       let merged = byTitle.get(section.title);
@@ -64,15 +129,16 @@ export function mergeSections(groups: Section[][], order?: string[]): Section[] 
   return order ? orderSections(ordered, order) : ordered;
 }
 
-export function mergeFragments(fragments: Fragment[], order?: string[]): Section[] {
+export function mergeFragments(fragments: Fragment[], order?: string[], types: SectionTypes = {}): Section[] {
   const sorted = [...fragments].sort((a, b) => a.name.localeCompare(b.name));
   return mergeSections(
-    sorted.map((fragment) => parseFragment(fragment.content)),
+    sorted.map((fragment) => parseFragment(fragment.content, types)),
     order,
+    types,
   );
 }
 
-export function parseChangelog(markdown: string): VersionBlock[] {
+export function parseChangelog(markdown: string, types: SectionTypes = {}): VersionBlock[] {
   const lines = markdown.split(/\r?\n/);
   const blocks: VersionBlock[] = [];
   let start = -1;
@@ -83,7 +149,7 @@ export function parseChangelog(markdown: string): VersionBlock[] {
     blocks.push({
       version: heading.version,
       unreleased: heading.unreleased,
-      sections: parseFragment(lines.slice(start + 1, end).join("\n")),
+      sections: parseFragment(lines.slice(start + 1, end).join("\n"), types),
       raw: lines.slice(start, end).join("\n").replace(/\s+$/, ""),
     });
   };
@@ -126,7 +192,11 @@ export function renderChangelog(sections: Section[], title = "Unreleased"): stri
   const parts: string[] = [`# ${title}`];
 
   for (const section of sections) {
-    parts.push(`## ${section.title}`, section.lines.join("\n"));
+    if (section.type === "raw") {
+      parts.push(`## ${section.title}`, section.body ?? "");
+    } else {
+      parts.push(`## ${section.title}`, section.lines.join("\n"));
+    }
   }
 
   return parts.join("\n\n") + "\n";
