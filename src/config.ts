@@ -21,8 +21,8 @@ export function defaultConfig(initialVersion: string): ChangelogConfig {
   return {
     sections: [
       { title: "Breaking Changes", bump: major === 0 ? "MINOR" : "MAJOR" },
-      { title: "Fixes", bump: "PATCH" },
       { title: "Features", bump: "MINOR" },
+      { title: "Fixes", bump: "PATCH" },
     ],
   };
 }

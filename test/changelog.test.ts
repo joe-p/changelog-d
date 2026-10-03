@@ -613,8 +613,8 @@ test("init creates an unreleased 1.0.0 changelog, config and fragments directory
   assert.deepEqual(JSON.parse(await readFile(config, "utf8")), {
     sections: [
       { title: "Breaking Changes", bump: "MAJOR" },
-      { title: "Fixes", bump: "PATCH" },
       { title: "Features", bump: "MINOR" },
+      { title: "Fixes", bump: "PATCH" },
     ],
   });
 });
@@ -629,8 +629,8 @@ test("init can start at 0.1.0 with breaking changes as a MINOR bump", async () =
   assert.deepEqual(JSON.parse(await readFile(config, "utf8")), {
     sections: [
       { title: "Breaking Changes", bump: "MINOR" },
-      { title: "Fixes", bump: "PATCH" },
       { title: "Features", bump: "MINOR" },
+      { title: "Fixes", bump: "PATCH" },
     ],
   });
 });
