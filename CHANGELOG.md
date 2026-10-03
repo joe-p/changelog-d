@@ -1,3 +1,9 @@
+# 0.6.0 - October 3rd, 2026
+
+## Breaking Changes
+
+- Change the default section order to `Breaking Changes`, `Features`, `Fixes`, so features are listed before fixes.
+
 # 0.5.0 - October 3rd, 2026
 
 ## Features
