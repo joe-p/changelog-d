@@ -27,6 +27,10 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
 
+      - name: Record base commit
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -118,4 +122,25 @@ jobs:
             echo "semfrag@${VERSION} is already published."
           else
             npm stage publish --access public
+          fi
+
+      - name: Roll back failed release
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [ -n "$VERSION" ]; then
+            echo "Deleting GitHub release and tag v${VERSION}..."
+            gh release delete "v${VERSION}" --yes --cleanup-tag 2>/dev/null || true
+            git push origin ":refs/tags/v${VERSION}" 2>/dev/null || true
+          fi
+
+          if [ -n "$BASE_SHA" ] && [ "$(git rev-parse HEAD)" != "$BASE_SHA" ]; then
+            echo "Restoring main to ${BASE_SHA}..."
+            git push origin "+${BASE_SHA}:refs/heads/main"
           fi
