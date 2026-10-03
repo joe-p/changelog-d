@@ -113,7 +113,7 @@ jobs:
               --notes "$(node dist/cli.js notes)"
           fi
 
-      - name: Stage npm publish
+      - name: Publish to npm
         if: steps.release.outputs.version != ''
         env:
           VERSION: ${{ steps.release.outputs.version }}
@@ -121,7 +121,7 @@ jobs:
           if npm view "semfrag@${VERSION}" version >/dev/null 2>&1; then
             echo "semfrag@${VERSION} is already published."
           else
-            npm stage publish --access public
+            npm publish --access public
           fi
 
       - name: Roll back failed release
