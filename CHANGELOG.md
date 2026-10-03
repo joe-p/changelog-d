@@ -1,4 +1,4 @@
-# 0.5.0 - October 3rd, 2026
+# 0.5.0 - Unreleased
 
 ## Features
 
