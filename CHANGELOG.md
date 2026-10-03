@@ -1,3 +1,9 @@
+# 0.5.0 - October 3rd, 2026
+
+## Features
+
+- Stamp the release date next to the version when running `release`, e.g. `1.1.0 - January 1st, 2026`.
+
 # 0.4.0
 
 ## Breaking Changes
