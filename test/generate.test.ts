@@ -198,6 +198,17 @@ test("parseChangelog splits released and unreleased blocks", () => {
   ]);
 });
 
+test("parseChangelog reads a version from a dated heading", () => {
+  const blocks = parseChangelog(
+    "# 1.1.0 - January 1st, 2026\n\n## Fixes\n\n- new\n\n# 1.0.1-alpha.1 - December 31st, 2025\n\n## Fixes\n\n- preview\n",
+  );
+
+  assert.equal(blocks[0]?.version, "1.1.0");
+  assert.equal(blocks[0]?.unreleased, false);
+  assert.equal(blocks[1]?.version, "1.0.1-alpha.1");
+  assert.equal(blocks[1]?.unreleased, false);
+});
+
 test("parseChangelog preserves raw block text", () => {
   const markdown = "# 1.0.0\n\n## Features\n\n- old\n\n# 0.9.0\n\n## Fixes\n\n- older\n";
   const [first] = parseChangelog(markdown);

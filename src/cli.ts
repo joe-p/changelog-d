@@ -31,10 +31,11 @@ Usage:
 Commands:
   generate              Merge pending fragments into an unreleased section and
                         prepend it to the changelog. This is the default command.
-  release               Finalize the top unreleased section. Without a
-                        prerelease flag, merges same-version prereleases into a
-                        release. With --alpha/--beta/--rc/--pre, tags the section
-                        as a prerelease instead. Fails if fragments are pending.
+  release               Finalize the top unreleased section, stamping the release
+                        date next to the version. Without a prerelease flag,
+                        merges same-version prereleases into a release. With
+                        --alpha/--beta/--rc/--pre, tags the section as a
+                        prerelease instead. Fails if fragments are pending.
   latest                Print the latest released version from the changelog.
   notes                 Print the changelog body of the latest release, without
                         the version heading. Useful for release notes.
@@ -65,10 +66,11 @@ version stays 1.0.0 regardless of bump level.
 
 Prereleases:
   release --alpha renames the top "1.0.1 - UNRELEASED" section to
-  "1.0.1-alpha.1". Repeating it for the same version increments the number; a
-  different channel restarts at .1. New fragments still generate a plain
-  "1.0.1 - UNRELEASED" on top. A plain release then merges the unreleased and
-  all "1.0.1-*" prerelease sections into "1.0.1" and removes them.
+  "1.0.1-alpha.1 - January 1st, 2026". Repeating it for the same version
+  increments the number; a different channel restarts at .1. New fragments still
+  generate a plain "1.0.1 - UNRELEASED" on top. A plain release then merges the
+  unreleased and all "1.0.1-*" prerelease sections into
+  "1.0.1 - January 1st, 2026" and removes them.
 
 Config file:
   A JSON object with a "sections" array listing the allowed sections in the order

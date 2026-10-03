@@ -17,7 +17,8 @@ starts clean. Run `semfrag release` when you are ready to cut the release.
 Versions are read from the changelog itself: there is no version to pass by hand.
 The next version is the highest bump level among the pending sections applied to
 the last released version. Until it is released, a section is titled
-`X.Y.Z - UNRELEASED`.
+`X.Y.Z - UNRELEASED`; releasing it stamps the date, for example
+`1.1.0 - January 1st, 2026`.
 
 A changelog title and introduction before the first version heading are preserved.
 Fragments must start with a `##` section heading and contain at least one entry;
@@ -161,14 +162,16 @@ version (`1.0.0`), so the minor bump wins:
 
 ### Release
 
-When you are ready to ship, remove the ` - UNRELEASED` suffix:
+When you are ready to ship, run:
 
 ```sh
 semfrag release
 ```
 
+This replaces the ` - UNRELEASED` suffix with the release date:
+
 ```md
-# 1.1.0
+# 1.1.0 - January 1st, 2026
 
 ## Fixes
 
@@ -213,7 +216,7 @@ semfrag notes
 ```
 
 prints the changelog body of the most recent released version, without the
-`# X.Y.Z` heading, so it can be piped straight into a release:
+`# X.Y.Z - <date>` heading, so it can be piped straight into a release:
 
 ```sh
 gh release create "v$(semfrag latest)" --notes "$(semfrag notes)"
@@ -232,7 +235,7 @@ semfrag release --alpha
 ```
 
 ```md
-# 1.0.1-alpha.1
+# 1.0.1-alpha.1 - January 1st, 2026
 
 ## Fixes
 
@@ -273,7 +276,7 @@ A plain `release` finalizes the version by merging the unreleased section and al
 same-version prerelease sections into `1.0.1` and removing the prerelease blocks:
 
 ```md
-# 1.0.1
+# 1.0.1 - January 1st, 2026
 
 ## Fixes
 
