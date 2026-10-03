@@ -36,13 +36,13 @@
   ],
   "author": "Joe Polny <joepolny@gmail.com>",
   "license": "MIT",
-  "homepage": "https://github.com/joe-p/changelog-d#readme",
+  "homepage": "https://github.com/joe-p/semfrag#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/joe-p/changelog-d.git"
+    "url": "git+https://github.com/joe-p/semfrag.git"
   },
   "bugs": {
-    "url": "https://github.com/joe-p/changelog-d/issues"
+    "url": "https://github.com/joe-p/semfrag/issues"
   },
   "devEngines": {
     "packageManager": {
