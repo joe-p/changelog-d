@@ -81,8 +81,8 @@ Config file:
     {
       "sections": [
         { "title": "Breaking Changes", "bump": "MAJOR" },
-        { "title": "Fixes", "bump": "PATCH" },
         { "title": "Features", "bump": "MINOR" },
+        { "title": "Fixes", "bump": "PATCH" },
         { "title": "Upgrade Guide", "type": "raw" }
       ]
     }
