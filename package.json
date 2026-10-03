@@ -1,7 +1,7 @@
 {
   "name": "semfrag",
   "version": "0.6.0",
-  "description": "Merge changelog.d fragments into a changelog with automatic semantic versioning",
+  "description": "Semantic versioning and changelog generation based on markdown fragments",
   "type": "module",
   "bin": {
     "semfrag": "dist/cli.js"
