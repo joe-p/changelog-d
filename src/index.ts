@@ -35,6 +35,7 @@ export {
   type ReleaseOptions,
   type ReleaseResult,
 } from "./changelog.ts";
+export { formatReleaseDate } from "./date.ts";
 export {
   DEFAULT_CONFIG_FILE,
   defaultConfig,

@@ -26,6 +26,7 @@ import {
   type BumpLevel,
 } from "./bump.ts";
 import { DEFAULT_CONFIG_FILE, defaultConfig, serializeConfig } from "./config.ts";
+import { formatReleaseDate } from "./date.ts";
 
 export interface GenerateOptions {
   dir: string;
@@ -56,6 +57,7 @@ export interface ReleaseOptions {
   prerelease?: string;
   order?: string[];
   types?: SectionTypes;
+  now?: Date;
 }
 
 export interface ReleaseResult {
@@ -339,11 +341,12 @@ async function releasePrerelease(
   }
 
   parseVersion(top.version);
-  const title = nextPrerelease(
+  const prerelease = nextPrerelease(
     top.version,
     channel,
     blocks.map((block) => block.version),
   );
+  const title = `${prerelease} - ${formatReleaseDate(options.now)}`;
   const entry = renderChangelog(top.sections, title);
   const remainder = blocks
     .slice(1)
@@ -354,7 +357,7 @@ async function releasePrerelease(
     await atomicWrite(options.output, withPreamble(preamble, prependChangelog(remainder, entry)));
   }
 
-  return { version: baseVersion(top.version), prerelease: title, written: !options.dryRun };
+  return { version: baseVersion(top.version), prerelease, written: !options.dryRun };
 }
 
 async function releaseFinal(
@@ -383,7 +386,7 @@ async function releaseFinal(
     options.order,
     options.types,
   );
-  const entry = renderChangelog(sections, base);
+  const entry = renderChangelog(sections, `${base} - ${formatReleaseDate(options.now)}`);
   const remainder = blocks
     .slice(index)
     .map((block) => block.raw)

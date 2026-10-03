@@ -34,6 +34,7 @@ export interface VersionBlock {
 const SECTION_RE = /^##\s+(.*\S)\s*$/;
 const VERSION_HEADING_RE = /^#\s+(.*\S)\s*$/;
 const UNRELEASED_HEADING_RE = /^(.*?)\s*-\s*UNRELEASED\s*$/i;
+const DATED_HEADING_RE = /^(.*?)\s+-\s+.*\S\s*$/;
 
 const RAW_HEADING_RE = /^#{1,2}(\s|$)/;
 
@@ -220,6 +221,15 @@ export function parseChangelog(markdown: string, types: SectionTypes = {}): Vers
   return parseChangelogDocument(markdown, types).blocks;
 }
 
+// A released heading may carry metadata after the version, such as a release
+// date ("1.1.0 - January 1st, 2026"). The version is everything before the
+// first space-delimited hyphen; a prerelease hyphen ("1.1.0-alpha.1") has no
+// surrounding spaces and is left intact.
+function releaseVersion(title: string): string {
+  const dated = DATED_HEADING_RE.exec(title);
+  return dated ? dated[1]!.trim() : title;
+}
+
 export function parseChangelogDocument(
   markdown: string,
   types: SectionTypes = {},
@@ -260,12 +270,11 @@ export function parseChangelogDocument(
       if (start < 0) continue;
       throw new Error(`Unexpected level-1 heading: ${JSON.stringify(title)}.`);
     }
-    parseVersion(unreleased ? unreleased[1]!.trim() : title);
+    const version = unreleased ? unreleased[1]!.trim() : releaseVersion(title);
+    parseVersion(version);
     push(index);
     if (firstVersion < 0) firstVersion = index;
-    heading = unreleased
-      ? { version: unreleased[1]!.trim(), unreleased: true }
-      : { version: title, unreleased: false };
+    heading = unreleased ? { version, unreleased: true } : { version, unreleased: false };
     start = index;
   }
 

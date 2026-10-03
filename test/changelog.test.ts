@@ -13,6 +13,8 @@ import { readConfig, sectionBumps, sectionOrder } from "../src/config.ts";
 
 const ORDER = ["Breaking Changes", "Fixes", "Features"];
 const BUMP = { "Breaking Changes": "MAJOR", Fixes: "PATCH", Features: "MINOR" } as const;
+const RELEASE_DATE = new Date(2026, 0, 1);
+const RELEASED_ON = "January 1st, 2026";
 
 async function makeRoot(): Promise<{ root: string; dir: string; output: string }> {
   const root = await mkdtemp(path.join(tmpdir(), "semfrag-"));
@@ -177,12 +179,13 @@ test("release merges raw sections from prereleases", async () => {
     dryRun: false,
     order: [...ORDER, "Details"],
     types: { Details: "raw" },
+    now: RELEASE_DATE,
   });
 
   assert.deepEqual(result, { version: "1.0.1", written: true });
   assert.equal(
     await readFile(output, "utf8"),
-    "# 1.0.1\n\n## Details\n\nNew details.\n\nOld details.\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+    `# 1.0.1 - ${RELEASED_ON}\n\n## Details\n\nNew details.\n\nOld details.\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n`,
   );
 });
 
@@ -228,12 +231,12 @@ test("release removes the unreleased marker", async () => {
     "# 1.1.0 - UNRELEASED\n\n## Features\n\n- A new feature!\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
 
-  const result = await release({ output, dir, dryRun: false });
+  const result = await release({ output, dir, dryRun: false, now: RELEASE_DATE });
 
   assert.deepEqual(result, { version: "1.1.0", written: true });
   assert.equal(
     await readFile(output, "utf8"),
-    "# 1.1.0\n\n## Features\n\n- A new feature!\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+    `# 1.1.0 - ${RELEASED_ON}\n\n## Features\n\n- A new feature!\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n`,
   );
 });
 
@@ -352,11 +355,17 @@ test("prerelease flow: alpha, more work, then final merge", async () => {
     "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
 
-  const alpha = await release({ output, dir, dryRun: false, prerelease: "alpha" });
+  const alpha = await release({
+    output,
+    dir,
+    dryRun: false,
+    prerelease: "alpha",
+    now: RELEASE_DATE,
+  });
   assert.deepEqual(alpha, { version: "1.0.1", prerelease: "1.0.1-alpha.1", written: true });
   assert.equal(
     await readFile(output, "utf8"),
-    "# 1.0.1-alpha.1\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+    `# 1.0.1-alpha.1 - ${RELEASED_ON}\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n`,
   );
 
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- Some new fix\n");
@@ -372,14 +381,14 @@ test("prerelease flow: alpha, more work, then final merge", async () => {
   assert.equal(generated.previous, "1.0.0");
   assert.equal(
     await readFile(output, "utf8"),
-    "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- Some new fix\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+    `# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- Some new fix\n\n# 1.0.1-alpha.1 - ${RELEASED_ON}\n\n## Fixes\n\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n`,
   );
 
-  const final = await release({ output, dir, dryRun: false, order: ORDER });
+  const final = await release({ output, dir, dryRun: false, order: ORDER, now: RELEASE_DATE });
   assert.deepEqual(final, { version: "1.0.1", written: true });
   assert.equal(
     await readFile(output, "utf8"),
-    "# 1.0.1\n\n## Fixes\n\n- Some new fix\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+    `# 1.0.1 - ${RELEASED_ON}\n\n## Fixes\n\n- Some new fix\n- Fixed a bug\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n`,
   );
 });
 
@@ -390,9 +399,15 @@ test("prerelease release increments the same channel", async () => {
     "# 1.0.1 - UNRELEASED\n\n## Fixes\n\n- More\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
 
-  const result = await release({ output, dir, dryRun: false, prerelease: "alpha" });
+  const result = await release({
+    output,
+    dir,
+    dryRun: false,
+    prerelease: "alpha",
+    now: RELEASE_DATE,
+  });
   assert.equal(result.prerelease, "1.0.1-alpha.2");
-  assert.match(await readFile(output, "utf8"), /^# 1\.0\.1-alpha\.2\n/);
+  assert.match(await readFile(output, "utf8"), /^# 1\.0\.1-alpha\.2 - January 1st, 2026\n/);
 });
 
 test("prerelease release resets the number when switching channel", async () => {
@@ -413,12 +428,12 @@ test("final release promotes a top prerelease without an unreleased section", as
     "# 1.0.1-alpha.2\n\n## Fixes\n\n- More\n\n# 1.0.1-alpha.1\n\n## Fixes\n\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
   );
 
-  const result = await release({ output, dir, dryRun: false });
+  const result = await release({ output, dir, dryRun: false, now: RELEASE_DATE });
 
   assert.deepEqual(result, { version: "1.0.1", written: true });
   assert.equal(
     await readFile(output, "utf8"),
-    "# 1.0.1\n\n## Fixes\n\n- More\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n",
+    `# 1.0.1 - ${RELEASED_ON}\n\n## Fixes\n\n- More\n- First\n\n# 1.0.0\n\n## Features\n\n- Released 1.0!\n`,
   );
 });
 
@@ -439,10 +454,14 @@ test("generate and both release modes preserve the changelog preamble", async ()
   await writeFile(path.join(dir, "fix.md"), "## Fixes\n\n- New fix\n");
   await generate({ dir, output, clear: true, dryRun: false, order: ORDER, bump: BUMP });
   assert.ok((await readFile(output, "utf8")).startsWith(`${preamble}# 1.0.1 - UNRELEASED\n`));
-  await release({ dir, output, dryRun: false, prerelease: "preview.test" });
-  assert.ok((await readFile(output, "utf8")).startsWith(`${preamble}# 1.0.1-preview.test.1\n`));
-  await release({ dir, output, dryRun: false });
-  assert.ok((await readFile(output, "utf8")).startsWith(`${preamble}# 1.0.1\n`));
+  await release({ dir, output, dryRun: false, prerelease: "preview.test", now: RELEASE_DATE });
+  assert.ok(
+    (await readFile(output, "utf8")).startsWith(
+      `${preamble}# 1.0.1-preview.test.1 - ${RELEASED_ON}\n`,
+    ),
+  );
+  await release({ dir, output, dryRun: false, now: RELEASE_DATE });
+  assert.ok((await readFile(output, "utf8")).startsWith(`${preamble}# 1.0.1 - ${RELEASED_ON}\n`));
 });
 
 test("generate preserves a preamble when creating the first version", async () => {
