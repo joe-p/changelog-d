@@ -29,9 +29,21 @@
   "keywords": [
     "changelog",
     "changelog.d",
-    "release"
+    "release",
+    "semver",
+    "semantic-versioning",
+    "cli"
   ],
+  "author": "Joe Polny <joepolny@gmail.com>",
   "license": "MIT",
+  "homepage": "https://github.com/joe-p/changelog-d#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joe-p/changelog-d.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joe-p/changelog-d/issues"
+  },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
